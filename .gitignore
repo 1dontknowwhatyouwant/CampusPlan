@@ -13,12 +13,20 @@ pnpm-debug.log*
 # Java / Maven / IDE
 target/
 *.class
+*.jar
+*.war
+*.nar
+*.ear
 .project
 .classpath
 .settings/
 .idea/
 *.iml
 .vscode/
+.mtj.tmp/
+*.ctxt
+hs_err_pid*
+replay_pid*
 
 # OS and local tooling
 .DS_Store
