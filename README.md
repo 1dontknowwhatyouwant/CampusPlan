@@ -26,4 +26,9 @@ CampusPlan/
 
 ## 협업 방식
 
-작업은 이슈 단위로 나누고 기능 브랜치에서 작업한 뒤 Pull Request로 `main`에 병합합니다. 팀원 한 명이 작성한 변경도 다른 팀원이 검토한 뒤 병합하는 것을 기본으로 합니다.
+작업은 이슈 단위로 나누고 기능 브랜치에서 작업합니다. 기능 브랜치는 Pull Request로 `develop`에 통합하고, 안정된 변경은 검토 후 `main`에 반영합니다.
+
+### 협업 규칙
+
+- [브랜치 컨벤션](docs/BRANCH_CONVENTION.md)
+- [커밋 메시지 컨벤션](docs/GIT_CONVENTION.md)
