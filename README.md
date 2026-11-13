@@ -32,3 +32,4 @@ CampusPlan/
 
 - [브랜치 컨벤션](docs/BRANCH_CONVENTION.md)
 - [커밋 메시지 컨벤션](docs/GIT_CONVENTION.md)
+- [이슈 · PR 컨벤션](docs/ISSUE_PR_CONVENTION.md)
