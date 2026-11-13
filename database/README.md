@@ -4,12 +4,13 @@ CampusPlan의 MySQL 데이터베이스 설계와 SQL 스크립트를 관리하�
 
 > 현재 `schema/`, `routines/`, `seeds/` 폴더는 있으며, 각 폴더에는 안내용 README만 있습니다. 아래 SQL 파일은 향후 추가할 때 사용할 권장 이름입니다.
 
-## 1. 기술 환경
+## 1. 기술 환경 및 권장 도구
 
 - **DBMS**: MySQL
 - **문자셋 권장값**: `utf8mb4`
-- **관리 도구**: MySQL Workbench, DBeaver 등
-- MySQL 버전과 콜레이션은 팀 개발 환경을 확정한 뒤 동일하게 적용하고 문서화합니다.
+- **관리 도구**: MySQL Workbench
+
+MySQL Server는 데이터베이스를 실행하고 데이터를 저장하는 서버 프로그램이며, MySQL Workbench는 서버에 접속해 SQL을 실행하고 데이터를 확인하는 관리 도구입니다. 로컬 MySQL을 사용할 때는 Server를 실행한 뒤 Workbench로 접속합니다.
 
 ## 2. 디렉터리 구조
 
@@ -35,6 +36,8 @@ database/
 - `schema/`: 테이블, 기본 키·외래 키, 제약 조건, 인덱스 등 데이터 구조
 - `routines/`: Trigger, Stored Procedure, View
 - `seeds/`: 과목·졸업요건 등 기준 데이터와 테스트 데이터
+
+팀에서 공유하는 기준은 Workbench 화면의 설정이 아니라 이 저장소의 `.sql` 파일입니다. Workbench에서 SQL을 작성하거나 수정한 뒤 변경 내용을 해당 파일에 저장하고 GitHub에 공유합니다.
 
 ## 3. 주요 데이터베이스 객체
 
