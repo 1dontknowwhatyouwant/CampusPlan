@@ -35,3 +35,11 @@ Thumbs.db
 
 # Local project proposal files (kept out of the repository)
 /계획서/
+
+# 배포·재사용 조건 확인 안되어 저장소에는 업로드 하지 않음.
+/data_sources/official/
+
+# 로컬에 설치한 에이전트 스킬 (저장소에 올리지 않음)
+/.agents/
+/.claude/
+/skills-lock.json
