@@ -51,7 +51,7 @@ backend/
 ### Step 1. 개발 환경 및 프로젝트 초기 세팅
 - [ ] 로컬 PC에 JDK, Apache Tomcat, MySQL 설치 및 실행 확인
 - [ ] VS Code 확장 프로그램 설치 (`Extension Pack for Java`, `Community Server Connectors`)
-- [ ] `backend/pom.xml` 작성 (`servlet-api`, `mysql-connector-j`, `gson` 의존성 추가)
+- [x] `backend/pom.xml` 작성 및 Maven 의존성 다운로드 완료 (`jakarta.servlet-api` 6.0.0, `mysql-connector-j` 9.7.0, `gson` 2.15.0; Java 17 컴파일 기준)
 - [ ] 패키지 디렉터리(`config`, `servlet`, `dao`, `dto`, `util`) 및 `web.xml` 생성
 
 ### Step 2. DB 연결 및 공통 기반 구현
