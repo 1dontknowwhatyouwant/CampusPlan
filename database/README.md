@@ -63,6 +63,8 @@ database/
 
 ## 5. 데이터 관리 원칙
 
+졸업 기준 조사 내용은 [`data_sources/graduation_requirements.md`](../data_sources/graduation_requirements.md)에서 관리합니다. 사용자 제공 규정은 공식 원문과 최신 개정 여부, 적용 학번 및 예외가 확인될 때까지 조사 자료로만 취급하고, `05_seed_master.sql`의 확정 기준 데이터로 입력하지 않습니다.
+
 ### 기준 데이터와 테스트 데이터 분리
 
 - 공식 자료의 출처와 확인 상태를 기록합니다.
