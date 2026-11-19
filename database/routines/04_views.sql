@@ -86,7 +86,8 @@ FROM (
     JOIN campusplan.Department d
         ON d.department_id = s.department_id
     JOIN campusplan.GraduationRule r
-        ON (r.department_name IS NULL OR r.department_name = d.department_name)
+        ON (r.college IS NULL OR r.college = d.college)
+       AND (r.department_name IS NULL OR r.department_name = d.department_name)
        AND s.admission_year >= r.admission_year_from
        AND (r.admission_year_to IS NULL OR s.admission_year <= r.admission_year_to)
     JOIN campusplan.CreditSummary cs
