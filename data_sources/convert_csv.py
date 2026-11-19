@@ -4,7 +4,7 @@
   - 입학년도별_학부_학과_매핑.csv        -> Department
   - official/학번별_졸업이수학점.csv      -> GraduationRule (학부 단위 학점 기준)
   - official/2026학년도 2학기 교양강좌 강의시간표.csv -> Course (교양필수·교양선택)
-  - official/2026학년도 2학기 전공강좌 강의시간표.csv -> Course (전공, 필수/선택 구분 없음)
+  - official/2026학년도 2학기 전공강좌 강의시간표.csv -> Course (전공)
 
 실행: 어느 위치에서든 `python3 data_sources/convert_csv.py`
 """
@@ -254,7 +254,7 @@ def main():
         print(f"교양·전공에 같은 과목코드가 있습니다: {sorted(overlap)[:10]}", file=sys.stderr)
         sys.exit(1)
     courses = {**general, **major}
-    lines += ["", "-- 과목: 2026학년도 2학기 강의시간표(교양·전공) 기준. 전공은 필수/선택 구분 자료가 없어 '전공'으로 입력합니다."]
+    lines += ["", "-- 과목: 2026학년도 2학기 강의시간표(교양·전공) 기준. 교양은 필수/선택으로 구분하고 전공은 '전공'으로 입력합니다."]
     lines += build_course_sql(courses)
 
     SQL_PATH.parent.mkdir(parents=True, exist_ok=True)

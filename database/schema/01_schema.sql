@@ -54,8 +54,7 @@ CREATE TABLE IF NOT EXISTS Semester (
 );
 
 -- 4. 과목 정보
---    category '전공' 은 전공필수/전공선택 구분이 확인되지 않은 전공 과목입니다.
---    (강의시간표 자료에 필수/선택 구분이 없어 05_seed_master.sql 은 전공을 '전공'으로 입력합니다.)
+--    category: 교양은 '교양필수'/'교양선택'으로 구분하고, 전공은 구분 없이 '전공'입니다.
 CREATE TABLE IF NOT EXISTS Course (
     course_id INT AUTO_INCREMENT PRIMARY KEY,
     code      VARCHAR(30) NOT NULL UNIQUE,
