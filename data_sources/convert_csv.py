@@ -1,8 +1,9 @@
 import csv
 from pathlib import Path
 
-csv_path = Path("입학년도별_학부_학과_매핑.csv")
-sql_path = Path(r"C:\Users\dmswl\OneDrive\바탕 화면\CampusPlan\database\seeds\05_seed_master.sql")
+BASE = Path(__file__).resolve().parent
+csv_path = BASE / "입학년도별_학부_학과_매핑.csv"
+sql_path = BASE.parent / "database" / "seeds" / "05_seed_master.sql"
 
 def sql_value(value):
     if not value:
@@ -16,7 +17,6 @@ departments = {}
 for row in rows:
     key = (row["입학년도"], row["학부"], row["학과"])
     departments[key] = row["출처URL"]
-python convert_csv.py
 lines = ["USE campusplan;", ""]
 
 for (year, college, department), url in departments.items():
