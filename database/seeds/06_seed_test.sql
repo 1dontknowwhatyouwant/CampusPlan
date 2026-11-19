@@ -31,25 +31,34 @@ VALUES
 (4, 1, 2025, 2, '이수');
 
 -- 3. 과목 테스트 데이터 (실제 개설 과목이 아님)
-INSERT INTO Course (course_id, code, name, credits, category)
+--    course_id 는 05_seed_master.sql 의 실제 과목과 겹치지 않도록 자동 증가에 맡기고,
+--    아래 수강 이력·졸업 규칙에서는 과목코드(TEST-*)로 조회합니다.
+INSERT INTO Course (code, name, credits, category)
 VALUES
-(1, 'DB101', '데이터베이스', 3, '전공선택'),
-(2, 'SW201', '소프트웨어공학', 3, '전공필수'),
-(3, 'GE101', '지역사회와봉사', 2, '교양필수'),
-(4, 'GE102', '인간과사회', 3, '교양선택'),
-(5, 'SW301', '웹프로그래밍', 3, '전공선택');
+('TEST-DB101', '[테스트] 데이터베이스',     3, '전공선택'),
+('TEST-SW201', '[테스트] 소프트웨어공학',   3, '전공필수'),
+('TEST-GE101', '[테스트] 지역사회와봉사',   2, '교양필수'),
+('TEST-GE102', '[테스트] 인간과사회',       3, '교양선택'),
+('TEST-SW301', '[테스트] 웹프로그래밍',     3, '전공선택');
 
 -- 4. 수강 이력 테스트 데이터
 --    (1, 소프트웨어공학): 2025-2 에 F → 2026-1 에 재수강 B  (재수강 시 학점 중복 집계 방지 확인용)
 INSERT INTO Enrollment (enrollment_id, student_id, semester_id, course_id, grade)
 VALUES
-(1, 1, 4, 2, 'F'),
-(2, 1, 1, 1, 'A'),
-(3, 1, 1, 2, 'B'),
-(4, 1, 1, 3, 'A'),
-(5, 1, 2, 4, NULL),
-(6, 1, 2, 5, NULL),
-(7, 2, 3, 1, 'B');
+(1, 1, 4,
+    (SELECT course_id FROM Course WHERE code = 'TEST-SW201'), 'F'),
+(2, 1, 1,
+    (SELECT course_id FROM Course WHERE code = 'TEST-DB101'), 'A'),
+(3, 1, 1,
+    (SELECT course_id FROM Course WHERE code = 'TEST-SW201'), 'B'),
+(4, 1, 1,
+    (SELECT course_id FROM Course WHERE code = 'TEST-GE101'), 'A'),
+(5, 1, 2,
+    (SELECT course_id FROM Course WHERE code = 'TEST-GE102'), NULL),
+(6, 1, 2,
+    (SELECT course_id FROM Course WHERE code = 'TEST-SW301'), NULL),
+(7, 2, 3,
+    (SELECT course_id FROM Course WHERE code = 'TEST-DB101'), 'B');
 
 -- 5. 시간표 테스트 데이터 (현재 학기 수강 과목)
 --    같은 학생·학기의 같은 요일/교시를 추가로 넣으면 trg_schedule_conflict 가 거부합니다.
@@ -77,4 +86,5 @@ VALUES
 ('[테스트] 전공학점',        'MAJOR_CREDITS',    6.0, NULL, '항공소프트웨어공학과', 2023, NULL, FALSE, '시연용 임시값'),
 ('[테스트] 교양학점',        'GENERAL_CREDITS',  5.0, NULL, NULL, 2023, NULL, FALSE, '시연용 임시값'),
 ('[테스트] 봉사시간',        'VOLUNTEER_HOURS', 15.0, NULL, NULL, 2023, NULL, FALSE, '시연용 임시값'),
-('[테스트] 필수과목 소프트웨어공학', 'REQUIRED_COURSE', NULL, 2, '항공소프트웨어공학과', 2023, NULL, FALSE, '시연용 임시값');
+('[테스트] 필수과목 소프트웨어공학', 'REQUIRED_COURSE', NULL,
+    (SELECT course_id FROM Course WHERE code = 'TEST-SW201'), '항공소프트웨어공학과', 2023, NULL, FALSE, '시연용 임시값');

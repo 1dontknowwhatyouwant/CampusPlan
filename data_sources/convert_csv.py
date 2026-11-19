@@ -3,6 +3,8 @@
 입력 (이 파일과 같은 폴더 기준)
   - 입학년도별_학부_학과_매핑.csv        -> Department
   - official/학번별_졸업이수학점.csv      -> GraduationRule (학부 단위 학점 기준)
+  - official/2026학년도 2학기 교양강좌 강의시간표.csv -> Course (교양필수·교양선택)
+  - official/2026학년도 2학기 전공강좌 강의시간표.csv -> Course (전공, 필수/선택 구분 없음)
 
 실행: 어느 위치에서든 `python3 data_sources/convert_csv.py`
 """
@@ -15,6 +17,8 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 DEPT_CSV = BASE / "입학년도별_학부_학과_매핑.csv"
 GRAD_CSV = BASE / "official" / "학번별_졸업이수학점.csv"
+GE_CSV = BASE / "official" / "2026학년도 2학기 교양강좌 강의시간표.csv"
+MAJOR_CSV = BASE / "official" / "2026학년도 2학기 전공강좌 강의시간표.csv"
 SQL_PATH = BASE.parent / "database" / "seeds" / "05_seed_master.sql"
 
 GRAD_SOURCE = "official/학번별_졸업이수학점.csv (공식 졸업학점표 PDF에서 추출)"
@@ -152,6 +156,60 @@ def build_rule_sql(rules):
     return lines
 
 
+def parse_general_courses():
+    """교양 강의시간표: '▶ 교양필수' / '▶ 교양선택' 구역별로 과목(코드 기준 1건)을 읽습니다."""
+    courses = {}
+    category = None
+    with GE_CSV.open("r", encoding="utf-8-sig", newline="") as file:
+        for row in csv.reader(file):
+            row += [""] * (10 - len(row))
+            if "▶" in row[2]:
+                category = row[2].replace("▶", "").strip()
+                continue
+            code = row[0].strip()
+            if not re.fullmatch(r"\d{7}", code):
+                continue  # 과목명 헤더, 열 이름, 안내 문구 행
+            if category not in ("교양필수", "교양선택"):
+                raise ValueError(f"교양 구분을 알 수 없습니다: {code} ({category})")
+            add_course(courses, code, row[2], row[4], category, GE_CSV.name)
+    return courses
+
+
+def parse_major_courses():
+    """전공 강의시간표: 학과별 표의 데이터 행(학년 열이 '1학년'~'4학년'·'공통')을 읽습니다."""
+    courses = {}
+    with MAJOR_CSV.open("r", encoding="utf-8-sig", newline="") as file:
+        for row in csv.reader(file):
+            if len(row) >= 5 and row[0] in ("1학년", "2학년", "3학년", "4학년", "공통"):
+                add_course(courses, row[2], row[1], row[4], "전공", MAJOR_CSV.name)
+    return courses
+
+
+def add_course(courses, code, name, credits, category, source):
+    code, name, credits = code.strip(), name.strip(), credits.strip()
+    if not code or not name or not credits.isdigit():
+        raise ValueError(f"{source}: 과목 행을 읽을 수 없습니다: {code!r}, {name!r}, {credits!r}")
+    value = (name, int(credits), category)
+    if code in courses and courses[code] != value:
+        raise ValueError(f"{source}: 과목코드 {code} 의 내용이 서로 다릅니다: {courses[code]} / {value}")
+    courses[code] = value
+
+
+def build_course_sql(courses):
+    lines = [
+        "INSERT INTO Course (code, name, credits, category)",
+        "VALUES",
+    ]
+    values = [
+        f"({sql_value(code)}, {sql_value(name)}, {credits}, {sql_value(category)})"
+        for code, (name, credits, category) in courses.items()
+    ]
+    lines.append(",\n".join(values))
+    lines.append("ON DUPLICATE KEY UPDATE name = VALUES(name), credits = VALUES(credits),"
+                 " category = VALUES(category);")
+    return lines
+
+
 def check_coverage(rules, departments):
     """모든 Department(학부·학과·입학년도)가 규칙 종류별로 정확히 1개씩 적용되는지 확인합니다."""
     problems = []
@@ -189,11 +247,22 @@ def main():
     lines += ["", "-- 졸업 규칙: 공식 졸업학점표(학부 x 학번 구간) 기준. 교양소계는 GENERAL_CREDITS 로 입력합니다."]
     lines += build_rule_sql(rules)
 
+    general = parse_general_courses()
+    major = parse_major_courses()
+    overlap = set(general) & set(major)
+    if overlap:
+        print(f"교양·전공에 같은 과목코드가 있습니다: {sorted(overlap)[:10]}", file=sys.stderr)
+        sys.exit(1)
+    courses = {**general, **major}
+    lines += ["", "-- 과목: 2026학년도 2학기 강의시간표(교양·전공) 기준. 전공은 필수/선택 구분 자료가 없어 '전공'으로 입력합니다."]
+    lines += build_course_sql(courses)
+
     SQL_PATH.parent.mkdir(parents=True, exist_ok=True)
     SQL_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     print(f"학과 CSV: {len(dept_rows)}행 -> Department {len(departments)}건")
     print(f"졸업학점 CSV: {len(grad_rows)}행 -> GraduationRule {len(rules)}건")
+    print(f"강의시간표 CSV: 교양 {len(general)}건, 전공 {len(major)}건 -> Course {len(courses)}건")
     print(f"저장 위치: {SQL_PATH}")
 
 
