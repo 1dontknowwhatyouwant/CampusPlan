@@ -36,7 +36,6 @@
 
 ## 알려진 문제
 
-- `data_sources/database/seeds/05_seed_master.sql`은 `database/seeds/05_seed_master.sql`과 내용이 같은 중복 파일입니다. 기준 파일은 `database/seeds/` 쪽입니다.
 - `02_triggers.sql`, `03_procedures.sql`은 `DELIMITER`를 사용하므로 JDBC가 아닌 MySQL Workbench 또는 `mysql` CLI로 실행해야 합니다.
 - `06_seed_test.sql`은 초기화 전용이라 같은 DB에 두 번 실행하면 키 중복 오류가 납니다. 스키마가 바뀌면 개발용 DB를 `DROP DATABASE campusplan;` 후 다시 구축합니다.
 
