@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS Semester (
 );
 
 -- 4. 과목 정보
+--    category: 교양은 '교양필수'/'교양선택'으로 구분하고, 전공은 구분 없이 '전공'입니다.
 CREATE TABLE IF NOT EXISTS Course (
     course_id INT AUTO_INCREMENT PRIMARY KEY,
     code      VARCHAR(30) NOT NULL UNIQUE,
@@ -62,7 +63,7 @@ CREATE TABLE IF NOT EXISTS Course (
     category  VARCHAR(30) NOT NULL,
 
     CHECK (credits >= 0),
-    CHECK (category IN ('전공필수', '전공선택', '교양필수', '교양선택', '일반선택'))
+    CHECK (category IN ('전공', '전공필수', '전공선택', '교양필수', '교양선택', '일반선택'))
 );
 
 -- 5. 수강 이력
@@ -113,8 +114,9 @@ CREATE TABLE IF NOT EXISTS Schedule (
 --      TOTAL_CREDITS / MAJOR_CREDITS / GENERAL_CREDITS : required_value = 필요 학점
 --      VOLUNTEER_HOURS                                 : required_value = 필요 봉사시간
 --      REQUIRED_COURSE                                 : required_course_id = 필수 과목
---    department_name 이 NULL 이면 전체 학과 공통 규칙입니다. Department 는 입학년도별
---    행이므로 학과명으로 매칭하고, 적용 입학년도는 admission_year_from~to 로 지정합니다.
+--    college(학부), department_name(학과)이 NULL 이면 해당 조건 없이 모두에 적용되는 규칙입니다.
+--    Department 는 입학년도별 행이므로 학부·학과명으로 매칭하고,
+--    적용 입학년도는 admission_year_from~to 로 지정합니다.
 --    is_verified 가 FALSE 인 규칙은 공식 자료로 확인되지 않은 임시/테스트 규칙입니다.
 CREATE TABLE IF NOT EXISTS GraduationRule (
     rule_id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -122,6 +124,7 @@ CREATE TABLE IF NOT EXISTS GraduationRule (
     rule_type          VARCHAR(30) NOT NULL,
     required_value     DECIMAL(6,1),
     required_course_id INT,
+    college            VARCHAR(100),
     department_name    VARCHAR(100),
     admission_year_from INT NOT NULL,
     admission_year_to   INT,
