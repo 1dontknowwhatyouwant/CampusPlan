@@ -19,16 +19,16 @@ database/
 ├── README.md
 ├── schema/
 │   ├── README.md
-│   └── 01_schema.sql                 # 추가 예정: 데이터베이스·테이블·제약 조건
+│   └── 01_schema.sql                 # 데이터베이스·테이블·제약 조건
 ├── routines/
 │   ├── README.md
-│   ├── 02_triggers.sql               # 추가 예정: 이수 여부·학점 집계 트리거
-│   ├── 03_procedures.sql             # 추가 예정: 봉사활동 일괄 승인 프로시저
-│   └── 04_views.sql                  # 추가 예정: 졸업요건 진단 뷰
+│   ├── 02_triggers.sql               # 이수 여부·학점 집계 트리거
+│   ├── 03_procedures.sql             # 봉사활동 일괄 승인 프로시저
+│   └── 04_views.sql                  # 졸업요건 진단 뷰
 └── seeds/
     ├── README.md
-    ├── 05_seed_master.sql            # 추가 예정: 확인된 기준 데이터
-    └── 06_seed_test.sql              # 추가 예정: 개발·시연용 테스트 데이터
+    ├── 05_seed_master.sql            # 확인된 기준 데이터
+    └── 06_seed_test.sql              # 개발·시연용 테스트 데이터
 ```
 
 ### 폴더별 관리 대상
