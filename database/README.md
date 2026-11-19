@@ -19,16 +19,16 @@ database/
 ├── README.md
 ├── schema/
 │   ├── README.md
-│   └── 01_schema.sql                 # 추가 예정: 데이터베이스·테이블·제약 조건
+│   └── 01_schema.sql                 # 데이터베이스·테이블·제약 조건
 ├── routines/
 │   ├── README.md
-│   ├── 02_triggers.sql               # 추가 예정: 이수 여부·학점 집계 트리거
-│   ├── 03_procedures.sql             # 추가 예정: 봉사활동 일괄 승인 프로시저
-│   └── 04_views.sql                  # 추가 예정: 졸업요건 진단 뷰
+│   ├── 02_triggers.sql               # 이수 여부·학점 집계 트리거
+│   ├── 03_procedures.sql             # 봉사활동 일괄 승인 프로시저
+│   └── 04_views.sql                  # 졸업요건 진단 뷰
 └── seeds/
     ├── README.md
-    ├── 05_seed_master.sql            # 추가 예정: 확인된 기준 데이터
-    └── 06_seed_test.sql              # 추가 예정: 개발·시연용 테스트 데이터
+    ├── 05_seed_master.sql            # 확인된 기준 데이터
+    └── 06_seed_test.sql              # 개발·시연용 테스트 데이터
 ```
 
 ### 폴더별 관리 대상
@@ -50,7 +50,6 @@ database/
 - 성적 척도(A+~F, P/NP), 이수 기준, 과목 구분(`전공필수/전공선택/교양필수/교양선택/일반선택`), 학기 상태값은 임시 가정입니다.
 - 졸업 규칙은 `05_seed_master.sql`에 넣지 않았습니다. `06_seed_test.sql`의 규칙은 시연용 임시값(`is_verified = FALSE`)입니다.
 - `05_seed_master.sql`의 입학년도 2026 학과 데이터가 출처 URL `admission2028.pdf`를 가리키므로, 연도·출처가 맞는지 확인이 필요합니다.
-- `data_sources/database/seeds/05_seed_master.sql`은 `database/seeds/05_seed_master.sql`과 내용이 같은 중복 파일입니다(이번 변경에서는 정리하지 않음).
 
 각 객체의 상세 계산 기준은 확정된 스키마와 요구사항에 맞춰 SQL 파일에 기록합니다. 계획서의 SQL 예시는 설계 초안이므로 실제 적용 전에 테이블 구조와 MySQL 동작을 확인합니다.
 

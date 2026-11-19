@@ -36,7 +36,6 @@
 
 ## 알려진 문제
 
-- `data_sources/database/seeds/05_seed_master.sql`은 `database/seeds/05_seed_master.sql`과 내용이 같은 중복 파일입니다. 기준 파일은 `database/seeds/` 쪽입니다.
 - `02_triggers.sql`, `03_procedures.sql`은 `DELIMITER`를 사용하므로 JDBC가 아닌 MySQL Workbench 또는 `mysql` CLI로 실행해야 합니다.
 - `06_seed_test.sql`은 초기화 전용이라 같은 DB에 두 번 실행하면 키 중복 오류가 납니다. 스키마가 바뀌면 개발용 DB를 `DROP DATABASE campusplan;` 후 다시 구축합니다.
 
@@ -45,6 +44,6 @@
 - 학점 집계, 봉사시간, 졸업 진단의 계산 기준은 DB의 View·Trigger·Procedure(`CreditSummary`, `VolunteerSummary`, `GraduationCheck`, `ApproveAllPendingVolunteer` 등)에 있습니다. 백엔드·프론트엔드에 같은 규칙을 다시 구현하지 않고, 백엔드는 요청 검증 → DB 호출 → JSON 응답만 담당합니다.
 - DB 스키마를 바꾸면 `database/README.md`와 관련 문서를 함께 갱신합니다.
 - `data_sources/official/`은 공식 자료 원본, `database/seeds/06_seed_test.sql`은 합성 테스트 데이터입니다. 두 가지를 섞지 않습니다.
-- 브랜치·커밋·이슈/PR 규칙은 `docs/`의 컨벤션 문서를 따릅니다. README는 `develop` 통합 방식을 설명하지만, 현재 저장소에서 확인되는 브랜치는 `main`과 작업 브랜치(`jungyu`)입니다.
+- 브랜치·커밋·이슈/PR 규칙은 `docs/`의 컨벤션 문서를 따릅니다. 기능 작업은 `develop`으로 PR을 올리고, `develop`을 `main`으로 PR해 반영합니다. 상시 브랜치는 `main`과 `develop`입니다.
 - `계획서/` 폴더는 로컬 참고 자료이며 저장소에 추가하지 않습니다.
 - `frontend/AGENTS.md`와 `.agents/skills/`가 있으므로 프론트엔드 작업 전에 해당 지침을 확인합니다.
