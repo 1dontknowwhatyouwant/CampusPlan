@@ -2,7 +2,7 @@
 
 CampusPlan의 MySQL 데이터베이스 설계와 SQL 스크립트를 관리하는 디렉터리입니다. 학점 집계, 봉사활동 승인 및 누적 시간 반영, 졸업요건 진단의 기준과 처리는 데이터베이스 구조 및 객체와 일관되게 관리합니다.
 
-> 현재 `schema/`, `routines/`, `seeds/` 폴더는 있으며, 각 폴더에는 안내용 README만 있습니다. 아래 SQL 파일은 향후 추가할 때 사용할 권장 이름입니다.
+> 현재 `schema/`, `routines/`, `seeds/` 폴더에 SQL 초안(v2)이 있습니다. MySQL 8.0(Docker)에서 아래 초기 구축 순서대로 01~06을 오류 없이 실행하고, 테스트 데이터 기준으로 학점 집계·이수 여부 트리거·봉사 일괄 승인·졸업 진단 뷰·시간표 충돌 방지 동작을 확인했습니다. 성적 척도, 졸업 기준 등은 공식 자료 확인 전의 임시 가정이므로 확정본은 아닙니다.
 
 ## 1. 기술 환경 및 권장 도구
 
@@ -41,9 +41,16 @@ database/
 
 ## 3. 주요 데이터베이스 객체
 
-- **Trigger**: 수강 성적 변경에 따른 이수 여부 판별 및 학점 집계를 처리합니다.
-- **Stored Procedure**: 학생의 대기 중인 봉사활동을 일괄 승인하고 승인된 봉사시간을 합산합니다.
-- **View**: 학생의 학점, 필수과목 이수 및 봉사시간을 졸업요건과 비교해 진단 정보를 제공합니다.
+- **Trigger**: 성적 입력·변경에 따른 이수 여부(`Enrollment.completed`) 판별, 같은 학기 시간표 충돌 방지.
+- **Function**: `fn_is_completed_grade` — 성적의 이수 여부 판정 기준을 한 곳에서 관리.
+- **Stored Procedure**: `ApproveVolunteer`(1건 승인), `ApproveAllPendingVolunteer`(학생의 대기 봉사 일괄 승인 후 승인 건수·누적 시간 반환).
+- **View**: `CreditSummary`(재수강은 과목당 1회만 인정해 학점 집계), `VolunteerSummary`(승인 봉사시간), `GraduationCheck`(학생별 졸업 규칙 충족 여부, `is_verified`로 공식 확인 여부 구분).
+
+### 공식 확인 전 임시 가정
+- 성적 척도(A+~F, P/NP), 이수 기준, 과목 구분(`전공필수/전공선택/교양필수/교양선택/일반선택`), 학기 상태값은 임시 가정입니다.
+- 졸업 규칙은 `05_seed_master.sql`에 넣지 않았습니다. `06_seed_test.sql`의 규칙은 시연용 임시값(`is_verified = FALSE`)입니다.
+- `05_seed_master.sql`의 입학년도 2026 학과 데이터가 출처 URL `admission2028.pdf`를 가리키므로, 연도·출처가 맞는지 확인이 필요합니다.
+- `data_sources/database/seeds/05_seed_master.sql`은 `database/seeds/05_seed_master.sql`과 내용이 같은 중복 파일입니다(이번 변경에서는 정리하지 않음).
 
 각 객체의 상세 계산 기준은 확정된 스키마와 요구사항에 맞춰 SQL 파일에 기록합니다. 계획서의 SQL 예시는 설계 초안이므로 실제 적용 전에 테이블 구조와 MySQL 동작을 확인합니다.
 
@@ -58,6 +65,10 @@ database/
 5. `seeds/05_seed_master.sql` 실행: 출처를 확인한 기준 데이터 입력
 6. `seeds/06_seed_test.sql` 실행: 개발·시연용 테스트 데이터 입력
 7. 주요 조회와 데이터베이스 객체 동작 확인
+
+- 스키마가 v2로 바뀌어(예: `Student.department_id`, `GraduationRule` 구조) 이전 버전 테이블이 있는 로컬 DB에서는 `01_schema.sql`이 구조를 바꾸지 못합니다. 개발용 로컬 DB라면 `DROP DATABASE campusplan;` 후 처음부터 다시 실행합니다.
+- `02_triggers.sql`, `03_procedures.sql`은 `DELIMITER`를 사용하므로 MySQL Workbench 또는 `mysql` CLI에서 실행합니다(JDBC로 실행 불가).
+- `06_seed_test.sql`은 초기화 전용이며 같은 DB에 두 번 실행하면 키 중복 오류가 납니다.
 
 실행 순서가 변경되면 관련 의존성을 확인하고 이 문서도 함께 갱신합니다. 초기화 스크립트를 운영 중인 데이터베이스에 재실행하면 데이터가 중복되거나 변경될 수 있으므로, 각 스크립트가 초기화용인지 반복 적용 가능한지 명시합니다.
 
