@@ -159,3 +159,22 @@ CREATE TABLE IF NOT EXISTS VolunteerRecord (
     CHECK (hours > 0),
     CHECK (status IN ('대기', '승인', '반려'))
 );
+
+-- 9. 로그인 계정
+--    role: 'STUDENT' 는 student_id 로 학생 한 명에 연결되고, 'ADMIN' 은 학생에 연결하지 않습니다.
+--    password_hash: 평문 비밀번호는 저장하지 않습니다.
+--      형식 pbkdf2_sha256$반복횟수$salt(hex)$hash(hex) (PBKDF2-HMAC-SHA256, 키 길이 32바이트)
+CREATE TABLE IF NOT EXISTS Account (
+    account_id    INT AUTO_INCREMENT PRIMARY KEY,
+    login_id      VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role          VARCHAR(20) NOT NULL,
+    student_id    INT NULL UNIQUE,
+
+    FOREIGN KEY (student_id)
+        REFERENCES Student(student_id),
+
+    CHECK (role IN ('STUDENT', 'ADMIN')),
+    CHECK ((role = 'STUDENT' AND student_id IS NOT NULL)
+        OR (role = 'ADMIN' AND student_id IS NULL))
+);

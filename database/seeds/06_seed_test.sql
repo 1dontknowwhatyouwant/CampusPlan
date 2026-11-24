@@ -88,3 +88,14 @@ VALUES
 ('[테스트] 봉사시간',        'VOLUNTEER_HOURS', 15.0, NULL, NULL, 2023, NULL, FALSE, '시연용 임시값'),
 ('[테스트] 필수과목 소프트웨어공학', 'REQUIRED_COURSE', NULL,
     (SELECT course_id FROM Course WHERE code = 'TEST-SW201'), '항공소프트웨어공학과', 2023, NULL, FALSE, '시연용 임시값');
+
+-- 8. 로그인 계정 테스트 데이터 (개발·시연용)
+--    테스트 비밀번호는 세 계정 모두 'campusplan-test' 입니다. 실제 계정이 아닙니다.
+--    password_hash 형식: pbkdf2_sha256$반복횟수$salt(hex)$hash(hex)  (PBKDF2-HMAC-SHA256, 키 길이 32바이트)
+--    student1 / student2 : 학생 1, 2 에 연결된 학생 계정
+--    admin               : 학생에 연결되지 않은 관리자 계정 (봉사 내역 승인 등)
+INSERT INTO Account (login_id, password_hash, role, student_id)
+VALUES
+('student1', 'pbkdf2_sha256$600000$1b7cbae47c0bfb456b8d16ae41a0c0f4$bda2370b5c25c69e5000309df11ea650dad103a00c0f0a510ac9430fd9d8cddf', 'STUDENT', 1),
+('student2', 'pbkdf2_sha256$600000$9b178babbcab0e9d8b2ed8a9ade6a794$55c75a7a5dbbf03df80f9b3d76815ce0967a147309e478d971a9e68c0738815e', 'STUDENT', 2),
+('admin', 'pbkdf2_sha256$600000$d6ad73392be80eb241a58e9aa9984e7a$012bd5a3fd1e03d2f535b3b37b98340089a54335b14584268230d28bf5a2bf5c', 'ADMIN', NULL);
