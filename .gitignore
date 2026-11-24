@@ -43,3 +43,6 @@ Thumbs.db
 /.agents/
 /.claude/
 /skills-lock.json
+
+# 프로젝트 전용 Tomcat 인스턴스 (backend/scripts/dev.sh 가 생성)
+backend/.tomcat/
