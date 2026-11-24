@@ -5,6 +5,7 @@
 ## 프로젝트 문서
 
 - [요구사항 정의](REQUIREMENTS.md)
+- [API 명세](API.md)
 
 ## 협업 규칙
 
