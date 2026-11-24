@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS Course (
     category  VARCHAR(30) NOT NULL,
 
     CHECK (credits >= 0),
-    CHECK (category IN ('전공', '전공필수', '전공선택', '교양필수', '교양선택', '일반선택'))
+    CHECK (category IN ('전공', '교양필수', '교양선택', '일반선택'))
 );
 
 -- 5. 수강 이력
