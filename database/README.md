@@ -53,6 +53,7 @@ database/
 - `06_seed_test.sql`의 테스트 과목은 코드 `TEST-*`, 이름 `[테스트] ...`로 구분하며 `course_id`는 자동 증가를 사용합니다.
 - 졸업학점표의 `첨단항공공학과`는 모집자료(`Department`)에서 `첨단항공학과`이므로 `Department` 이름으로 입력했습니다. 같은 학부를 다르게 부르는 이름(예: 스포츠학부/해양·스포츠학부, 융합교양학부/융합학부)은 `convert_csv.py`의 `COLLEGE_ALIASES`로 맞춥니다.
 - `06_seed_test.sql`의 규칙은 시연용 임시값(`is_verified = FALSE`)이며, 같은 학생에게 공식 규칙과 함께 표시됩니다.
+- `Account`는 로그인 계정(`STUDENT`는 학생 1명에 연결, `ADMIN`은 연결 없음)이며, 비밀번호는 `pbkdf2_sha256$반복횟수$salt$hash` 형식 해시로 저장합니다. `06_seed_test.sql`의 테스트 계정(`student1`, `student2`, `admin`)은 개발·시연용입니다. 테스트 비밀번호는 `06_seed_test.sql` 주석에 있습니다.
 - `05_seed_master.sql`의 입학년도 2026 학과 데이터가 출처 URL `admission2028.pdf`를 가리키므로, 연도·출처가 맞는지 확인이 필요합니다.
 
 각 객체의 상세 계산 기준은 확정된 스키마와 요구사항에 맞춰 SQL 파일에 기록합니다. 계획서의 SQL 예시는 설계 초안이므로 실제 적용 전에 테이블 구조와 MySQL 동작을 확인합니다.
