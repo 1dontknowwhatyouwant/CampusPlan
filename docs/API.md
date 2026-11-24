@@ -63,6 +63,7 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 
 | 기능 | 메서드 | 경로 | 호출 DB 객체 |
 | --- | --- | --- | --- |
+| 공통 | GET | `/api/health` | (DB 연결 확인) |
 | FR-01 | GET | `/api/students` | Student, Department |
 | FR-01 | GET | `/api/students/{studentId}` | Student, Department |
 | FR-02 | GET | `/api/courses` | Course |
@@ -84,6 +85,18 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 | FR-07 | GET | `/api/students/{studentId}/dashboard` | 위 조회를 묶어서 반환 |
 
 ## 3. 엔드포인트 상세
+
+### 공통
+
+#### `GET /api/health`
+
+서버와 DB 연결 상태를 확인합니다. 학생 식별이 필요 없습니다.
+
+```json
+{ "status": "ok", "database": "up" }
+```
+
+- DB에 연결할 수 없으면 `503`과 `{ "status": "degraded", "database": "down" }`을 반환합니다. 이 응답만 오류 형식(`error`)을 쓰지 않습니다.
 
 ### FR-01 학생
 
