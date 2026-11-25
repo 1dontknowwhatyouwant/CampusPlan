@@ -91,8 +91,8 @@ backend/scripts/dev.sh build  # 빌드만
 *(의존성이 낮은 기준 데이터부터 구현하며, 모든 SQL은 `PreparedStatement` 파라미터 바인딩을 사용합니다.)*
 - [x] **과목 API (`CourseServlet`, `CourseDao`)**: `GET /api/courses` 검색·페이지 (`Course`는 2026학년도 2학기 개설분만 담고 있어 학기별 개설 과목 조회는 만들지 않음)
 - [ ] **학생 · 대시보드 API (`StudentServlet`, `StudentDao`)**: `GET /api/me`(학생 기본 정보)는 구현됨. 학점/봉사 요약 View 조회와 대시보드는 아직 없음
-- [ ] **수강 · 시간표 API (`EnrollmentServlet`, `EnrollmentDao`)**: 수강 내역 등록·수정·삭제 및 학기별 주간 시간표 조회
-- [ ] **봉사활동 API (`VolunteerServlet`, `VolunteerDao`)**: 봉사 내역 등록·조회 및 승인 봉사시간 집계 View 조회
+- [ ] **수강 · 시간표 API (`EnrollmentServlet`, `EnrollmentDao`)**: 조회는 구현됨(`GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`). 수강 등록·수정·삭제와 시간표 칸 등록·삭제는 아직 없음
+- [ ] **봉사활동 API (`VolunteerServlet`, `VolunteerDao`)**: 조회는 구현됨(`GET /api/me/volunteers`, 승인 시간은 View `VolunteerSummary`). 봉사 등록과 관리자 승인 API는 아직 없음
 - [x] **학점·졸업요건 진단 API (`CreditServlet`, `GraduationServlet`, `GraduationDao`)**: `GET /api/me/credits`(View `CreditSummary`), `GET /api/me/graduation-check`(View `GraduationCheck`) 결과를 그대로 반환
 
 ### Step 5. 예외 처리 검증 및 문서 갱신

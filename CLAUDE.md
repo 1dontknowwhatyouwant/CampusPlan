@@ -13,14 +13,14 @@
 | 1. 요구사항·범위 | 완료 (`docs/REQUIREMENTS.md`, 계획서는 로컬 보관, 저장소에 올리지 않음) |
 | 2. 데이터 조사·정제 | 대부분 완료. 졸업 학점 기준은 공식 자료 반영, 그 외 조사 내용은 확인 전 |
 | 3. DB·API·화면 설계 | DB 설계 완료. API 명세 초안은 `docs/API.md`에 있음(로그인 방식 반영). ERD 문서는 아직 없음(팀원 작업), 화면 설계 문서는 없음 |
-| 4. 구현 | DB 완료, 백엔드는 공통 기반, 로그인·권한 검사, `GET /api/me`·`GET /api/courses`·`GET /api/me/credits`·`GET /api/me/graduation-check`까지 구현(시간표·수강·봉사·대시보드 API 구현 전), 프론트엔드는 시작 전 |
+| 4. 구현 | DB 완료, 백엔드는 공통 기반, 로그인·권한 검사, `GET /api/me`·`GET /api/courses`·학점·졸업진단·학기·수강 이력·시간표·봉사 조회 API까지 구현(쓰기 API, 관리자 API, 대시보드 구현 전), 프론트엔드는 시작 전 |
 | 5. 통합 확인 | 시작 전 |
 | 6. 문서·시연 정리 | 시작 전 |
 
 ### 영역별 현황
 
 - `database/`: `schema/01_schema.sql`(테이블 9개, 로그인 계정 `Account` 포함), `routines/02~04`, `seeds/05~06` 작성됨. MySQL 8.0(Docker)에서 순서대로 실행해 확인했다고 `database/README.md`에 기록되어 있음.
-- `backend/`: 공통 기반만 구현됨(`DBConnectionManager`, `CorsFilter`, `ApiServlet`·`ApiException`·`SqlErrorMapper`·`Validator`·`JsonUtil`, `HealthServlet`)과 로그인(`AuthServlet`, `AuthFilter`, `AccountDao`, `PasswordHasher`)이 구현됨. `GET /api/me`(`StudentServlet`), `GET /api/courses`(`CourseServlet`), `GET /api/me/credits`(`CreditServlet`), `GET /api/me/graduation-check`(`GraduationServlet`)가 구현됨. 나머지 도메인 서블릿·DAO는 아직 없고, README의 해당 구조는 계획입니다.
+- `backend/`: 공통 기반만 구현됨(`DBConnectionManager`, `CorsFilter`, `ApiServlet`·`ApiException`·`SqlErrorMapper`·`Validator`·`JsonUtil`, `HealthServlet`)과 로그인(`AuthServlet`, `AuthFilter`, `AccountDao`, `PasswordHasher`)이 구현됨. `GET /api/me`(`StudentServlet`), `GET /api/courses`(`CourseServlet`), `GET /api/me/credits`(`CreditServlet`), `GET /api/me/graduation-check`(`GraduationServlet`), `GET /api/me/semesters`·`enrollments`·`timetable`·`volunteers`가 구현됨. 나머지 도메인 서블릿·DAO는 아직 없고, README의 해당 구조는 계획입니다.
 - `frontend/`: `create-next-app` 기본 화면 그대로. 화면 구현 없음.
 - `docs/`: 요구사항 정의(`REQUIREMENTS.md`), API 명세 초안(`API.md`), 협업 규칙 문서(브랜치·커밋·이슈/PR 컨벤션)가 있음. ERD는 없음.
 
@@ -42,11 +42,13 @@
 - `06_seed_test.sql`은 초기화 전용이라 같은 DB에 두 번 실행하면 키 중복 오류가 납니다. 스키마가 바뀌면 개발용 DB를 `DROP DATABASE campusplan;` 후 다시 구축합니다.
 - 백엔드는 로그인·권한 검사를 `curl`로 확인했고(401/403, 세션 고정 방지, CORS 쿠키 헤더), 테스트 코드는 없습니다. 오류 변환(`SqlErrorMapper`)과 도메인별 검증은 도메인 API 구현 때 처음 실행됩니다.
 - 로그인 시도 횟수 제한이 없고 세션 만료 시간은 Tomcat 기본값입니다.
+- DB 연결 풀이 없어 요청마다 연결을 새로 엽니다(요청당 1~2번). 시연 규모에서는 문제가 없어 보류했고, 배포하거나 느려지면 `DBConnectionManager`에 HikariCP를 도입합니다(DAO는 바꾸지 않음).
 
 ## 작업 시 참고
 
 - 학점 집계, 봉사시간, 졸업 진단의 계산 기준은 DB의 View·Trigger·Procedure(`CreditSummary`, `VolunteerSummary`, `GraduationCheck`, `ApproveAllPendingVolunteer` 등)에 있습니다. 백엔드·프론트엔드에 같은 규칙을 다시 구현하지 않고, 백엔드는 요청 검증 → DB 호출 → JSON 응답만 담당합니다.
 - DB 스키마를 바꾸면 `database/README.md`와 관련 문서를 함께 갱신합니다.
+- DB 시간대는 한국 시간(`+09:00`)입니다. 로컬 MySQL 컨테이너는 `--default-time-zone=+09:00`으로 실행합니다(`database/README.md`). 백엔드는 DATE/DATETIME을 `getObject(..., LocalDate/LocalDateTime.class)`로 읽어 JVM 시간대에 영향받지 않게 합니다.
 - 백엔드 실행: JDK 17, Tomcat 10.1, Maven이 필요하고(`brew install openjdk@17 tomcat@10 maven`), DB 접속 정보는 저장소 루트 `.env`(`.env.example` 참고, Git에 올리지 않음)에 둡니다. `backend/scripts/dev.sh`가 JDK 17로 빌드하고 프로젝트 전용 Tomcat에서 실행합니다. 이 PC의 기본 `java`는 17이 아닐 수 있으므로 스크립트를 사용합니다.
 - API는 `docs/API.md`가 기준입니다. 응답은 래퍼 없이 데이터를 그대로 반환하고, 오류는 `{"error": {"code", "message"}}`입니다. 학생 데이터 경로는 로그인 세션 기준의 `/api/me/...`입니다.
 - `data_sources/official/`은 공식 자료 원본, `database/seeds/06_seed_test.sql`은 합성 테스트 데이터입니다. 두 가지를 섞지 않습니다.

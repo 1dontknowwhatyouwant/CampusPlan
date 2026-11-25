@@ -60,6 +60,24 @@ database/
 
 ## 4. 초기 구축 순서
 
+### 로컬 개발용 MySQL (Docker)
+
+DB 시간대는 **한국 시간(`+09:00`)** 으로 맞춥니다. `NOW()`(예: 봉사 승인 시각 `approved_at`)와 테스트 데이터의 시각이 같은 기준이 되도록 하기 위해서입니다. MySQL 공식 이미지의 기본 시간대는 UTC이므로 `--default-time-zone`을 반드시 지정합니다.
+
+```bash
+docker run -d --name campusplan-mysql -p 127.0.0.1:3306:3306 \
+  -e MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" \
+  -v campusplan-mysql-data:/var/lib/mysql \
+  mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+09:00
+```
+
+- `MYSQL_ROOT_PASSWORD`는 저장소 루트 `.env`에 둡니다(`.env.example` 참고, Git에 올리지 않음).
+- 확인: `SELECT @@global.time_zone, NOW();`가 `+09:00`과 현재 한국 시각을 돌려줘야 합니다.
+- 이미 UTC로 만든 컨테이너는 컨테이너만 지우고 같은 볼륨으로 위 명령을 다시 실행하면 데이터는 유지됩니다.
+- 배포 환경의 DB도 같은 시간대 기준을 사용합니다.
+
+### SQL 실행 순서
+
 새 로컬 데이터베이스를 구성할 때는 아래 순서를 따릅니다.
 
 1. `schema/01_schema.sql` 실행: 데이터베이스와 테이블 생성
