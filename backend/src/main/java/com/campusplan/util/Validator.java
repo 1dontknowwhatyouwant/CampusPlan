@@ -52,4 +52,24 @@ public final class Validator {
             throw ApiException.badRequest(name + " 은(는) 1 이상의 정수여야 합니다.");
         }
     }
+
+    /** 선택 정수 파라미터. 없으면 기본값, 형식이 틀리거나 범위를 벗어나면 400 입니다. */
+    public static int optionalInt(String raw, String name, int defaultValue, int min, int max) {
+        if (raw == null || raw.isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            int value = Integer.parseInt(raw);
+            if (value < min || value > max) {
+                // 상한이 없는 값(max 가 Integer.MAX_VALUE)은 상한을 메시지에 드러내지 않는다.
+                String range = max == Integer.MAX_VALUE
+                        ? min + " 이상의 정수여야 합니다."
+                        : min + " 이상 " + max + " 이하여야 합니다.";
+                throw ApiException.badRequest(name + " 은(는) " + range);
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            throw ApiException.badRequest(name + " 은(는) 정수여야 합니다.");
+        }
+    }
 }
