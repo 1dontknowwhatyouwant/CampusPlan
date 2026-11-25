@@ -1,5 +1,8 @@
 package com.campusplan.util;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 /** 요청 값 검증. 실패하면 400 INVALID_REQUEST 를 던집니다. DB 의 CHECK 는 마지막 방어선입니다. */
@@ -43,6 +46,35 @@ public final class Validator {
             throw ApiException.badRequest(name + " 값이 올바르지 않습니다. 허용 값: " + allowed);
         }
         return value;
+    }
+
+    /** yyyy-MM-dd 형식의 날짜 문자열을 읽습니다. */
+    public static LocalDate parseDate(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw ApiException.badRequest(name + " 값이 필요합니다.");
+        }
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException e) {
+            throw ApiException.badRequest(name + " 은(는) yyyy-MM-dd 형식의 올바른 날짜여야 합니다.");
+        }
+    }
+
+    /** 0 보다 크고 소수 첫째 자리까지, max 이하인 수 (DB 의 DECIMAL(n,1) 범위를 넘지 않게 먼저 거른다). */
+    public static BigDecimal requirePositiveOneDecimal(BigDecimal value, String name, BigDecimal max) {
+        if (value == null) {
+            throw ApiException.badRequest(name + " 값이 필요합니다.");
+        }
+        if (value.signum() <= 0) {
+            throw ApiException.badRequest(name + " 은(는) 0보다 커야 합니다.");
+        }
+        if (value.stripTrailingZeros().scale() > 1) {
+            throw ApiException.badRequest(name + " 은(는) 소수 첫째 자리까지만 입력할 수 있습니다.");
+        }
+        if (value.compareTo(max) > 0) {
+            throw ApiException.badRequest(name + " 은(는) " + max.toPlainString() + " 이하여야 합니다.");
+        }
+        return value.setScale(1);
     }
 
     /** 경로·쿼리 문자열을 정수로 변환합니다. */
