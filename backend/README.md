@@ -28,15 +28,26 @@ backend/
         ├── java/com/campusplan/
         │   ├── config/
         │   │   ├── DBConnectionManager.java # 환경변수 기반 MySQL 커넥션 관리
-        │   │   └── CorsFilter.java          # 프론트엔드(Next.js) 연동용 CORS 필터
+        │   │   ├── CorsFilter.java          # 프론트엔드(Next.js) 연동용 CORS 필터, 상태 변경 요청의 Origin 검사
+        │   │   └── AuthFilter.java          # 로그인·역할(STUDENT/ADMIN) 검사
         │   ├── servlet/                     # 도메인별 REST API 엔드포인트
-        │   │   ├── ApiServlet.java          # 공통 기반 클래스: 예외 → JSON 오류 응답 변환
+        │   │   ├── ApiServlet.java          # 공통 기반 클래스: 예외 → JSON 오류 응답 변환, PATCH 처리
+        │   │   ├── ErrorServlet.java        # 컨테이너 404·405 등을 JSON 오류로 변환 (/_error)
         │   │   ├── HealthServlet.java       # 서버 및 DB 연결 상태 확인 (/api/health)
+        │   │   ├── AuthServlet.java         # 로그인·로그아웃·현재 계정 (/api/auth/*)
         │   │   ├── CourseServlet.java       # 과목 조회 (/api/courses)
-        │   │   ├── StudentServlet.java      # 학생 정보 및 대시보드 요약 (/api/students)
-        │   │   ├── EnrollmentServlet.java   # 수강 이력 및 주간 시간표 (/api/enrollments)
-        │   │   ├── VolunteerServlet.java    # 봉사활동 내역 관리 (/api/volunteers)
-        │   │   └── GraduationServlet.java   # 졸업요건 진단 조회 (/api/graduation)
+        │   │   ├── StudentServlet.java      # 학생 기본 정보 (/api/me)
+        │   │   ├── DashboardServlet.java    # 대시보드 묶음 조회 (/api/me/dashboard)
+        │   │   ├── CreditServlet.java       # 학점 집계 (/api/me/credits)
+        │   │   ├── GraduationServlet.java   # 졸업요건 진단 (/api/me/graduation-check)
+        │   │   ├── SemesterServlet.java     # 학기 목록 (/api/me/semesters)
+        │   │   ├── EnrollmentServlet.java   # 수강 이력 조회·수강 등록 (/api/me/enrollments)
+        │   │   ├── EnrollmentItemServlet.java # 성적 수정·수강 취소·시간표 칸 등록 (/api/enrollments/*)
+        │   │   ├── ScheduleServlet.java     # 시간표 칸 삭제 (/api/schedules/*)
+        │   │   ├── TimetableServlet.java    # 주간 시간표 (/api/me/timetable)
+        │   │   ├── VolunteerServlet.java    # 봉사 내역 조회·등록 (/api/me/volunteers)
+        │   │   ├── AdminVolunteerServlet.java # 관리자 봉사 목록·개별 승인 (/api/admin/volunteers/*)
+        │   │   └── AdminStudentServlet.java # 관리자 학생별 일괄 승인 (/api/admin/students/*)
         │   ├── dao/                         # DB 접근 계층 (PreparedStatement / CallableStatement)
         │   ├── dto/                         # 요청/응답 JSON 데이터 객체 (ErrorResponse 등)
         │   └── util/                        # JsonUtil, Validator, ApiException, SqlErrorMapper
@@ -104,7 +115,7 @@ python3 backend/scripts/api_test.py
 ### Step 4. 도메인별 API 순차 구현
 *(의존성이 낮은 기준 데이터부터 구현하며, 모든 SQL은 `PreparedStatement` 파라미터 바인딩을 사용합니다.)*
 - [x] **과목 API (`CourseServlet`, `CourseDao`)**: `GET /api/courses` 검색·페이지 (`Course`는 2026학년도 2학기 개설분만 담고 있어 학기별 개설 과목 조회는 만들지 않음)
-- [ ] **학생 · 대시보드 API (`StudentServlet`, `StudentDao`)**: `GET /api/me`(학생 기본 정보)는 구현됨. 학점/봉사 요약 View 조회와 대시보드는 아직 없음
+- [x] **학생 · 대시보드 API (`StudentServlet`, `DashboardServlet`)**: `GET /api/me`(학생 기본 정보), `GET /api/me/credits`, `GET /api/me/graduation-check`와 `GET /api/me/dashboard`(학생·현재 학기 시간표·학점·졸업 진단을 한 번에 반환, 재학 학기가 없으면 `timetable`만 null) 구현됨
 - [x] **수강 · 시간표 API (`EnrollmentServlet`, `EnrollmentItemServlet`, `ScheduleServlet`, `EnrollmentDao`)**: 조회(`GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`)와 쓰기(`POST /api/me/enrollments`, `PATCH`·`DELETE /api/enrollments/{id}`, `POST /api/enrollments/{id}/schedules`, `DELETE /api/schedules/{id}`) 구현됨. 학기 생성(`POST /api/me/semesters`)은 아직 없음
 - [x] **봉사활동 API (`VolunteerServlet`, `VolunteerDao`)**: 구현됨: `GET /api/me/volunteers`(승인 시간은 View `VolunteerSummary`), `POST /api/me/volunteers`(상태는 항상 `대기`), 관리자 API(`AdminVolunteerServlet`, `AdminStudentServlet`): 전체 내역 조회, 프로시저 `ApproveVolunteer`·`ApproveAllPendingVolunteer` 호출
 - [x] **학점·졸업요건 진단 API (`CreditServlet`, `GraduationServlet`, `GraduationDao`)**: `GET /api/me/credits`(View `CreditSummary`), `GET /api/me/graduation-check`(View `GraduationCheck`) 결과를 그대로 반환
