@@ -74,7 +74,7 @@ python3 backend/scripts/api_test.py
 - 기대값을 하드코딩하지 않고 **DB 직접 조회 결과와 API 응답을 대조**합니다. 테스트 데이터가 바뀌어도 대부분 그대로 동작합니다.
 - 검사 항목: 인증(401/403, 로그인 실패 응답 통일, 세션 쿠키 속성, 세션 고정 방지), CORS, 404/405 JSON, 과목 검색·검증, 학생별 학생 정보·학점·졸업진단·학기·수강 이력·시간표·봉사 값과 시각 형식.
 - 하나라도 실패하면 종료 코드 1입니다. 코드를 바꾼 뒤 PR 전에 실행합니다.
-- 쓰기 테스트는 봉사 API(등록·관리자 목록·개별·일괄 승인)만 있습니다. 수강·시간표·성적 쓰기 API를 구현할 때 같은 방식(만든 행만 삭제 + 복원 확인)으로 추가합니다. 일괄 승인은 시드의 대기 내역을 건드리지 않도록 대기 내역이 없는 학생(student2)으로만 시험합니다.
+- 쓰기 테스트는 봉사 API(등록·관리자 목록·개별·일괄 승인)와 수강·시간표 API(수강 등록·성적 수정·시간표 칸 등록·삭제·수강 취소)에 있으며, 만든 행만 삭제하고 테이블이 시작 때와 같은지 확인합니다. 수강·시간표 테스트는 시드의 수강·시간표 행을 바꾸지 않고 테스트가 만든 수강 과목에서만 쓰기를 확인합니다. 일괄 승인은 시드의 대기 내역을 건드리지 않도록 대기 내역이 없는 학생(student2)으로만 시험합니다.
 
 ## 4. 백엔드 구현 순서
 
@@ -105,7 +105,7 @@ python3 backend/scripts/api_test.py
 *(의존성이 낮은 기준 데이터부터 구현하며, 모든 SQL은 `PreparedStatement` 파라미터 바인딩을 사용합니다.)*
 - [x] **과목 API (`CourseServlet`, `CourseDao`)**: `GET /api/courses` 검색·페이지 (`Course`는 2026학년도 2학기 개설분만 담고 있어 학기별 개설 과목 조회는 만들지 않음)
 - [ ] **학생 · 대시보드 API (`StudentServlet`, `StudentDao`)**: `GET /api/me`(학생 기본 정보)는 구현됨. 학점/봉사 요약 View 조회와 대시보드는 아직 없음
-- [ ] **수강 · 시간표 API (`EnrollmentServlet`, `EnrollmentDao`)**: 조회는 구현됨(`GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`). 수강 등록·수정·삭제와 시간표 칸 등록·삭제는 아직 없음
+- [x] **수강 · 시간표 API (`EnrollmentServlet`, `EnrollmentItemServlet`, `ScheduleServlet`, `EnrollmentDao`)**: 조회(`GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`)와 쓰기(`POST /api/me/enrollments`, `PATCH`·`DELETE /api/enrollments/{id}`, `POST /api/enrollments/{id}/schedules`, `DELETE /api/schedules/{id}`) 구현됨. 학기 생성(`POST /api/me/semesters`)은 아직 없음
 - [x] **봉사활동 API (`VolunteerServlet`, `VolunteerDao`)**: 구현됨: `GET /api/me/volunteers`(승인 시간은 View `VolunteerSummary`), `POST /api/me/volunteers`(상태는 항상 `대기`), 관리자 API(`AdminVolunteerServlet`, `AdminStudentServlet`): 전체 내역 조회, 프로시저 `ApproveVolunteer`·`ApproveAllPendingVolunteer` 호출
 - [x] **학점·졸업요건 진단 API (`CreditServlet`, `GraduationServlet`, `GraduationDao`)**: `GET /api/me/credits`(View `CreditSummary`), `GET /api/me/graduation-check`(View `GraduationCheck`) 결과를 그대로 반환
 
