@@ -128,7 +128,7 @@ def test_public_and_auth():
     status, _, body = c.call("GET", "/api/health")
     check("health 200, DB up", status == 200 and body == {"status": "ok", "database": "up"}, body)
 
-    for path in ["/api/auth/me", "/api/me", "/api/courses", "/api/me/credits"]:
+    for path in ["/api/auth/me", "/api/me", "/api/courses", "/api/me/credits", "/api/me/dashboard"]:
         status, _, body = c.call("GET", path)
         check(f"미로그인 {path} -> 401 UNAUTHENTICATED", status == 401 and error_code(body) == "UNAUTHENTICATED")
 
@@ -161,7 +161,7 @@ def test_public_and_auth():
     admin = Client()
     status, _, body = admin.login("admin")
     check("관리자 로그인, studentId null", status == 200 and body.get("role") == "ADMIN" and body.get("studentId") is None)
-    for path in ["/api/me", "/api/me/credits", "/api/enrollments/1"]:
+    for path in ["/api/me", "/api/me/credits", "/api/me/dashboard", "/api/enrollments/1"]:
         status, _, _ = admin.call("GET", path)
         check(f"관리자 -> {path} 403", status == 403)
     status, _, _ = admin.call("GET", "/api/courses")
@@ -301,6 +301,46 @@ def test_student(login_id):
                                        "WHERE student_id = %d AND approved_at IS NOT NULL", student_id))
     check("approvedAt = DB 값 그대로 (시간대 변환 없음)",
           sorted(r["approvedAt"] for r in body["records"] if r["approvedAt"]) == db_times)
+
+    # 대시보드: 개별 조회 API 응답을 그대로 묶은 값이어야 한다
+    status, _, dash = c.call("GET", "/api/me/dashboard")
+    expected_timetable = c.call("GET", "/api/me/timetable")[2] if current else None
+    check("dashboard = 학생·시간표·학점·졸업진단 개별 API 응답",
+          status == 200 and isinstance(dash, dict)
+          and set(dash) == {"student", "timetable", "credits", "graduationCheck"}
+          and dash["student"] == c.call("GET", "/api/me")[2]
+          and dash["credits"] == c.call("GET", "/api/me/credits")[2]
+          and dash["graduationCheck"] == c.call("GET", "/api/me/graduation-check")[2]
+          and dash["timetable"] == expected_timetable, (status, dash))
+    status, _, _ = c.call("POST", "/api/me/dashboard", {})
+    check("dashboard POST -> 405", status == 405, status)
+
+
+def test_dashboard_without_current_semester():
+    """재학 학기가 없으면 대시보드는 timetable 만 null, 시간표 API 는 404.
+
+    student1 의 '재학' 학기를 잠깐 '이수'로 바꿨다가 되돌리고, Semester 가 시작 때와 같은지 확인한다.
+    """
+    print("[대시보드: 재학 학기 없음]")
+    snapshot = "SELECT * FROM Semester ORDER BY semester_id"
+    before = db(snapshot)
+    sid = int(db("SELECT student_id FROM Account WHERE login_id = 'student1'")[0][0])
+    current = [int(r[0]) for r in db("SELECT semester_id FROM Semester WHERE student_id = %d AND status = '재학'", sid)]
+    try:
+        c = Client()
+        c.login("student1")
+        if current:
+            db("UPDATE Semester SET status = '이수' WHERE semester_id IN (%s)" % ",".join(str(i) for i in current))
+        status, _, dash = c.call("GET", "/api/me/dashboard")
+        check("재학 학기 없음: dashboard 200, timetable null", status == 200 and isinstance(dash, dict)
+              and dash.get("timetable") is None and dash.get("student") is not None
+              and dash.get("credits") is not None and dash.get("graduationCheck") is not None, (status, dash))
+        status, _, body = c.call("GET", "/api/me/timetable")
+        check("재학 학기 없음: timetable API 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+    finally:
+        if current:
+            db("UPDATE Semester SET status = '재학' WHERE semester_id IN (%s)" % ",".join(str(i) for i in current))
+        check("테스트 후 Semester 가 시작 때와 같음", db(snapshot) == before)
 
 
 def test_volunteer_writes():
@@ -751,6 +791,7 @@ def main():
     if "--read-only" in sys.argv[1:]:
         print("\n[쓰기 테스트 생략] --read-only")
     else:
+        test_dashboard_without_current_semester()
         test_volunteer_writes()
         test_enrollment_writes()
 
