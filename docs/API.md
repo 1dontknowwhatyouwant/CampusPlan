@@ -14,6 +14,8 @@ CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. 
 | 역할 | `STUDENT`(학생 한 명에 연결), `ADMIN`(학생에 연결되지 않음) |
 | 비밀번호 | 평문을 저장하지 않고 `pbkdf2_sha256$반복횟수$salt$hash` 형식 해시로 저장·비교합니다. |
 | 프론트엔드 | 요청에 쿠키를 포함해야 합니다(`fetch`의 `credentials: "include"`). 백엔드는 `http://localhost:3000`에서 온 요청만 쿠키 포함 요청으로 허용합니다. |
+| 출처 검사 (CSRF) | 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 `Origin` 헤더가 있고 `http://localhost:3000`이 아니면 403 `FORBIDDEN`입니다. `SameSite=Lax`는 다른 사이트의 요청만 막고, `localhost`의 다른 포트처럼 같은 사이트로 취급되는 출처에서는 쿠키가 전송되기 때문입니다. `Origin`이 없는 요청(curl 등)은 통과합니다. |
+| 요청 본문 | 본문이 있는 요청은 `Content-Type: application/json`이어야 하며, 아니면 400 `INVALID_REQUEST`입니다. |
 | 인증이 필요 없는 API | `GET /api/health`, `POST /api/auth/login` |
 
 | 구분 | 경로 | 접근 가능한 역할 |
@@ -55,10 +57,10 @@ CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. 
 
 | HTTP | code | 상황 |
 | --- | --- | --- |
-| 400 | `INVALID_REQUEST` | 필수값 누락, 형식 오류, 허용되지 않는 값(성적·요일·학기 등), DB `CHECK` 위반 |
+| 400 | `INVALID_REQUEST` | 필수값 누락, 형식 오류, 허용되지 않는 값(성적·요일·학기 등), `Content-Type`이 `application/json`이 아닌 본문, DB `CHECK` 위반 |
 | 401 | `UNAUTHENTICATED` | 로그인하지 않았거나 세션이 만료됨 |
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 (아이디가 없거나 비밀번호가 틀림. 어느 쪽인지 알려 주지 않음) |
-| 403 | `FORBIDDEN` | 로그인했지만 이 API를 쓸 수 없는 역할 (학생이 관리자 API 호출, 관리자가 학생 API 호출) |
+| 403 | `FORBIDDEN` | 로그인했지만 이 API를 쓸 수 없는 역할 (학생이 관리자 API 호출, 관리자가 학생 API 호출), 허용되지 않은 출처(`Origin`)의 상태 변경 요청 |
 | 404 | `NOT_FOUND` | 학생·학기·과목·수강·봉사 내역이 없거나 본인의 것이 아님, 존재하지 않는 경로 |
 | 405 | `METHOD_NOT_ALLOWED` | 해당 경로에서 지원하지 않는 HTTP 메서드 |
 | 409 | `SCHEDULE_CONFLICT` | 시간표 충돌 (트리거 `trg_schedule_conflict`의 `SQLSTATE 45000`) |
@@ -502,7 +504,7 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 
 | 항목 | 내용 |
 | --- | --- |
-| 로그인 보안 보강 | 로그인 시도 횟수 제한, CSRF 토큰, 세션 만료 시간, 비밀번호 변경은 정해지지 않았습니다. 이 초안은 `SameSite=Lax` 쿠키와 허용된 출처(CORS)로만 방어합니다. 상용 수준의 인증은 범위 밖입니다. |
+| 로그인 보안 보강 | 로그인 시도 횟수 제한, CSRF 토큰, 세션 만료 시간, 비밀번호 변경은 정해지지 않았습니다. CSRF는 `SameSite=Lax` 쿠키, 상태 변경 요청의 `Origin` 검사, `application/json` 본문 강제로 방어하며 토큰 방식은 쓰지 않습니다. 배포 시 허용 출처를 바꿔야 합니다. 상용 수준의 인증은 범위 밖입니다. |
 | 계정 발급 | 회원가입·계정 생성 화면은 없고 시드 데이터로 만듭니다. 실제 학생 계정을 어떻게 만들지는 정해지지 않았습니다. |
 | 승인자 기록 | 누가 승인했는지 `VolunteerRecord`에 저장하지 않습니다. 필요하면 승인자 컬럼과 프로시저 수정이 필요합니다. |
 | 배포 | 배포 방식과 주소가 정해지지 않았습니다. 배포 시 쿠키의 `Secure` 설정과 CORS 허용 출처를 다시 정해야 합니다. |

@@ -94,7 +94,7 @@ python3 backend/scripts/api_test.py
 - [x] `PasswordHasher`(PBKDF2-HMAC-SHA256), `AccountDao`: `Account` 조회와 비밀번호 검증. 계정이 없을 때도 같은 계산 비용을 쓰고 실패 응답은 같은 메시지로 통일
 - [x] `AuthServlet`: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`. 로그인 시 기존 세션을 버리고 새 세션 생성(세션 고정 방지)
 - [x] `AuthFilter`: 로그인 여부와 역할 검사(`/api/me/**`, `/api/enrollments/**`, `/api/schedules/**`는 `STUDENT`, `/api/admin/**`는 `ADMIN`). 필터 순서(CORS → 인증)와 세션 쿠키 설정(`HttpOnly`, `SameSite=Lax`)은 `web.xml`
-- [x] `CorsFilter`: `http://localhost:3000`에 쿠키 포함 요청 허용
+- [x] `CorsFilter`: `http://localhost:3000`에 쿠키 포함 요청 허용. 상태 변경 요청(POST/PUT/PATCH/DELETE)에 다른 `Origin`이 있으면 403 (CSRF 방어). 요청 본문은 `JsonUtil.read`가 `application/json`만 받음
 - [ ] 수강·시간표 항목의 소유권 검사는 해당 API 구현 시 각 API에서 처리
 
 ### Step 3. 선행 산출물 동기화 (DB & API 명세)
