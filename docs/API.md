@@ -1,6 +1,6 @@
 # API 명세 (초안)
 
-CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`, `GET /api/me/credits`, `GET /api/me/graduation-check`, `GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`, `GET /api/me/volunteers`이고 나머지(쓰기 API, 관리자 API, 대시보드)는 구현 전입니다.
+CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`, `GET /api/me/credits`, `GET /api/me/graduation-check`, `GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`, `GET /api/me/volunteers`, `POST /api/me/volunteers`, 관리자 봉사 API(`GET /api/admin/volunteers`, `POST /api/admin/volunteers/{recordId}/approve`, `POST /api/admin/students/{studentId}/volunteers/approve-all`)이고 나머지(수강·시간표·성적 쓰기 API, 학기 생성, 대시보드)는 구현 전입니다.
 
 ## 1. 공통 규칙
 
@@ -14,6 +14,8 @@ CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. 
 | 역할 | `STUDENT`(학생 한 명에 연결), `ADMIN`(학생에 연결되지 않음) |
 | 비밀번호 | 평문을 저장하지 않고 `pbkdf2_sha256$반복횟수$salt$hash` 형식 해시로 저장·비교합니다. |
 | 프론트엔드 | 요청에 쿠키를 포함해야 합니다(`fetch`의 `credentials: "include"`). 백엔드는 `http://localhost:3000`에서 온 요청만 쿠키 포함 요청으로 허용합니다. |
+| 출처 검사 (CSRF) | 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 `Origin` 헤더가 있고 `http://localhost:3000`이 아니면 403 `FORBIDDEN`입니다. `SameSite=Lax`는 다른 사이트의 요청만 막고, `localhost`의 다른 포트처럼 같은 사이트로 취급되는 출처에서는 쿠키가 전송되기 때문입니다. `Origin`이 없는 요청(curl 등)은 통과합니다. |
+| 요청 본문 | 본문이 있는 요청은 `Content-Type: application/json`이어야 하며, 아니면 400 `INVALID_REQUEST`입니다. |
 | 인증이 필요 없는 API | `GET /api/health`, `POST /api/auth/login` |
 
 | 구분 | 경로 | 접근 가능한 역할 |
@@ -55,10 +57,10 @@ CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. 
 
 | HTTP | code | 상황 |
 | --- | --- | --- |
-| 400 | `INVALID_REQUEST` | 필수값 누락, 형식 오류, 허용되지 않는 값(성적·요일·학기 등), DB `CHECK` 위반 |
+| 400 | `INVALID_REQUEST` | 필수값 누락, 형식 오류, 허용되지 않는 값(성적·요일·학기 등), `Content-Type`이 `application/json`이 아닌 본문, DB `CHECK` 위반 |
 | 401 | `UNAUTHENTICATED` | 로그인하지 않았거나 세션이 만료됨 |
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 (아이디가 없거나 비밀번호가 틀림. 어느 쪽인지 알려 주지 않음) |
-| 403 | `FORBIDDEN` | 로그인했지만 이 API를 쓸 수 없는 역할 (학생이 관리자 API 호출, 관리자가 학생 API 호출) |
+| 403 | `FORBIDDEN` | 로그인했지만 이 API를 쓸 수 없는 역할 (학생이 관리자 API 호출, 관리자가 학생 API 호출), 허용되지 않은 출처(`Origin`)의 상태 변경 요청 |
 | 404 | `NOT_FOUND` | 학생·학기·과목·수강·봉사 내역이 없거나 본인의 것이 아님, 존재하지 않는 경로 |
 | 405 | `METHOD_NOT_ALLOWED` | 해당 경로에서 지원하지 않는 HTTP 메서드 |
 | 409 | `SCHEDULE_CONFLICT` | 시간표 충돌 (트리거 `trg_schedule_conflict`의 `SQLSTATE 45000`) |
@@ -77,7 +79,8 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 | `status` (학기) | `예정`, `재학`, `이수` (임시 가정) |
 | `day` | `월`, `화`, `수`, `목`, `금`, `토` |
 | `period` | 1 이상의 정수 |
-| `hours` | 0보다 큰 수 |
+| `hours` | 0보다 크고 소수 첫째 자리까지, 9999.9 이하 (DB `DECIMAL(5,1)`) |
+| `activityDate` | `yyyy-MM-dd` 형식의 실제 있는 날짜 |
 | `activityName` | 비어 있지 않은 문자열, 100자 이하 |
 
 ## 2. 엔드포인트 요약
@@ -480,9 +483,9 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 ## 4. 구현 시 확인할 점
 
 - `02_triggers.sql`, `03_procedures.sql`로 만든 객체를 JDBC로 **호출**하는 것은 가능합니다(`CALL ApproveAllPendingVolunteer(?, ?, ?)`). 제한은 객체를 **만드는** SQL 파일의 `DELIMITER`에만 있습니다.
-- `ApproveAllPendingVolunteer`는 내부에서 트랜잭션을 시작하고 커밋하므로, 호출 전에 JDBC 연결의 자동 커밋 설정과 이미 열린 트랜잭션이 없는지 확인해야 합니다.
+- `ApproveAllPendingVolunteer`는 내부에서 트랜잭션을 시작하고 커밋하므로, 자동 커밋 상태인 새 연결로 호출합니다(구현됨). 호출 전에 다른 트랜잭션을 열어 두지 않습니다.
 - `GET .../timetable`처럼 여러 테이블을 묶는 응답은 서버에서 JOIN 결과를 그룹핑해 만듭니다. 학점·충족 여부는 DB 값을 쓰고 서버에서 다시 계산하지 않습니다.
-- DB 오류를 HTTP 오류로 바꾸는 규칙(SQLSTATE `45000`, 중복 키, 외래 키, `CHECK` 위반)은 한 곳에서 처리합니다. 다만 `45000`은 시간표 충돌(409)과 존재하지 않는 학생(404)에 모두 쓰이므로 SQLSTATE만으로 구분할 수 없습니다. 엔드포인트별로 처리하거나 메시지 문구로 구분해야 하며, 구현 전에 방식을 정해야 합니다.
+- DB 오류를 HTTP 오류로 바꾸는 규칙(SQLSTATE `45000`, 중복 키, 외래 키, `CHECK` 위반)은 한 곳에서 처리합니다. 다만 `45000`은 시간표 충돌(409)과 존재하지 않는 학생(404)에 모두 쓰이므로 SQLSTATE만으로 구분할 수 없습니다. SQLSTATE만으로는 구분할 수 없어 엔드포인트별 DAO가 직접 변환합니다. 일괄 승인은 `45000`을 404로 바꾸며 구현됐고, 시간표 등록의 `45000`(409)은 해당 API 구현 때 처리합니다.
 
 - 로그인 응답과 쿠키를 프론트엔드가 쓰려면 CORS 응답에 `Access-Control-Allow-Credentials: true`가 있어야 하고 `Access-Control-Allow-Origin`은 `*`가 아닌 특정 출처여야 합니다. 백엔드의 `CorsFilter`가 `http://localhost:3000`에 대해 이를 설정합니다. 로그인·권한 검사를 하는 `AuthFilter`는 CORS 필터 다음에 실행되어, 401·403 응답에도 CORS 헤더가 붙습니다. 두 필터의 순서는 `web.xml`에서 정합니다.
 - 비밀번호 비교는 `PBKDF2WithHmacSHA256`(JDK 기본 제공)으로 하고, 해시 문자열의 반복 횟수와 salt를 읽어 같은 방식으로 계산한 값과 비교합니다. 시드의 테스트 해시가 JDK 17에서 같은 값으로 검증되는 것을 확인했습니다.
@@ -501,7 +504,7 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 
 | 항목 | 내용 |
 | --- | --- |
-| 로그인 보안 보강 | 로그인 시도 횟수 제한, CSRF 토큰, 세션 만료 시간, 비밀번호 변경은 정해지지 않았습니다. 이 초안은 `SameSite=Lax` 쿠키와 허용된 출처(CORS)로만 방어합니다. 상용 수준의 인증은 범위 밖입니다. |
+| 로그인 보안 보강 | 로그인 시도 횟수 제한, CSRF 토큰, 세션 만료 시간, 비밀번호 변경은 정해지지 않았습니다. CSRF는 `SameSite=Lax` 쿠키, 상태 변경 요청의 `Origin` 검사, `application/json` 본문 강제로 방어하며 토큰 방식은 쓰지 않습니다. 배포 시 허용 출처를 바꿔야 합니다. 상용 수준의 인증은 범위 밖입니다. |
 | 계정 발급 | 회원가입·계정 생성 화면은 없고 시드 데이터로 만듭니다. 실제 학생 계정을 어떻게 만들지는 정해지지 않았습니다. |
 | 승인자 기록 | 누가 승인했는지 `VolunteerRecord`에 저장하지 않습니다. 필요하면 승인자 컬럼과 프로시저 수정이 필요합니다. |
 | 배포 | 배포 방식과 주소가 정해지지 않았습니다. 배포 시 쿠키의 `Secure` 설정과 CORS 허용 출처를 다시 정해야 합니다. |

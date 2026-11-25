@@ -70,11 +70,11 @@ backend/scripts/dev.sh build  # 빌드만
 python3 backend/scripts/api_test.py
 ```
 
-- 조회 전용입니다. 로그인 세션만 만들고 DB 데이터는 바꾸지 않습니다.
+- 조회 테스트는 로그인 세션만 만들고 DB 데이터를 바꾸지 않습니다. 쓰기 테스트는 테스트용 행을 만들어 API로 처리한 뒤 **만든 행만 지우고**, 끝에서 테이블이 시작 때와 같은지 확인합니다(자동 증가 번호는 되돌리지 않음). DB를 바꾸지 않으려면 `python3 backend/scripts/api_test.py --read-only`를 씁니다.
 - 기대값을 하드코딩하지 않고 **DB 직접 조회 결과와 API 응답을 대조**합니다. 테스트 데이터가 바뀌어도 대부분 그대로 동작합니다.
 - 검사 항목: 인증(401/403, 로그인 실패 응답 통일, 세션 쿠키 속성, 세션 고정 방지), CORS, 404/405 JSON, 과목 검색·검증, 학생별 학생 정보·학점·졸업진단·학기·수강 이력·시간표·봉사 값과 시각 형식.
 - 하나라도 실패하면 종료 코드 1입니다. 코드를 바꾼 뒤 PR 전에 실행합니다.
-- 쓰기 API 테스트는 아직 없습니다. 추가할 때는 테스트가 끝난 뒤 DB를 시드 상태로 되돌리는 방법을 함께 정합니다.
+- 쓰기 테스트는 봉사 API(등록·관리자 목록·개별·일괄 승인)만 있습니다. 수강·시간표·성적 쓰기 API를 구현할 때 같은 방식(만든 행만 삭제 + 복원 확인)으로 추가합니다. 일괄 승인은 시드의 대기 내역을 건드리지 않도록 대기 내역이 없는 학생(student2)으로만 시험합니다.
 
 ## 4. 백엔드 구현 순서
 
@@ -94,7 +94,7 @@ python3 backend/scripts/api_test.py
 - [x] `PasswordHasher`(PBKDF2-HMAC-SHA256), `AccountDao`: `Account` 조회와 비밀번호 검증. 계정이 없을 때도 같은 계산 비용을 쓰고 실패 응답은 같은 메시지로 통일
 - [x] `AuthServlet`: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`. 로그인 시 기존 세션을 버리고 새 세션 생성(세션 고정 방지)
 - [x] `AuthFilter`: 로그인 여부와 역할 검사(`/api/me/**`, `/api/enrollments/**`, `/api/schedules/**`는 `STUDENT`, `/api/admin/**`는 `ADMIN`). 필터 순서(CORS → 인증)와 세션 쿠키 설정(`HttpOnly`, `SameSite=Lax`)은 `web.xml`
-- [x] `CorsFilter`: `http://localhost:3000`에 쿠키 포함 요청 허용
+- [x] `CorsFilter`: `http://localhost:3000`에 쿠키 포함 요청 허용. 상태 변경 요청(POST/PUT/PATCH/DELETE)에 다른 `Origin`이 있으면 403 (CSRF 방어). 요청 본문은 `JsonUtil.read`가 `application/json`만 받음
 - [ ] 수강·시간표 항목의 소유권 검사는 해당 API 구현 시 각 API에서 처리
 
 ### Step 3. 선행 산출물 동기화 (DB & API 명세)
@@ -106,7 +106,7 @@ python3 backend/scripts/api_test.py
 - [x] **과목 API (`CourseServlet`, `CourseDao`)**: `GET /api/courses` 검색·페이지 (`Course`는 2026학년도 2학기 개설분만 담고 있어 학기별 개설 과목 조회는 만들지 않음)
 - [ ] **학생 · 대시보드 API (`StudentServlet`, `StudentDao`)**: `GET /api/me`(학생 기본 정보)는 구현됨. 학점/봉사 요약 View 조회와 대시보드는 아직 없음
 - [ ] **수강 · 시간표 API (`EnrollmentServlet`, `EnrollmentDao`)**: 조회는 구현됨(`GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`). 수강 등록·수정·삭제와 시간표 칸 등록·삭제는 아직 없음
-- [ ] **봉사활동 API (`VolunteerServlet`, `VolunteerDao`)**: 조회는 구현됨(`GET /api/me/volunteers`, 승인 시간은 View `VolunteerSummary`). 봉사 등록과 관리자 승인 API는 아직 없음
+- [x] **봉사활동 API (`VolunteerServlet`, `VolunteerDao`)**: 구현됨: `GET /api/me/volunteers`(승인 시간은 View `VolunteerSummary`), `POST /api/me/volunteers`(상태는 항상 `대기`), 관리자 API(`AdminVolunteerServlet`, `AdminStudentServlet`): 전체 내역 조회, 프로시저 `ApproveVolunteer`·`ApproveAllPendingVolunteer` 호출
 - [x] **학점·졸업요건 진단 API (`CreditServlet`, `GraduationServlet`, `GraduationDao`)**: `GET /api/me/credits`(View `CreditSummary`), `GET /api/me/graduation-check`(View `GraduationCheck`) 결과를 그대로 반환
 
 ### Step 5. 예외 처리 검증 및 문서 갱신

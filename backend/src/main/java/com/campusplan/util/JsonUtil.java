@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Locale;
 
 public final class JsonUtil {
 
@@ -26,8 +27,17 @@ public final class JsonUtil {
         }
     }
 
-    /** 요청 본문 JSON 을 type 으로 읽습니다. 본문이 없거나 JSON 이 아니면 400 입니다. */
+    /**
+     * 요청 본문 JSON 을 type 으로 읽습니다. Content-Type 이 application/json 이 아니거나,
+     * 본문이 없거나 JSON 이 아니면 400 입니다.
+     * (Content-Type 을 강제하면 브라우저가 다른 출처 요청에 preflight 를 거치게 되어, form 으로 위조한 요청을 막는다)
+     */
     public static <T> T read(HttpServletRequest request, Class<T> type) throws IOException {
+        String contentType = request.getContentType();
+        if (contentType == null
+                || !contentType.toLowerCase(Locale.ROOT).startsWith("application/json")) {
+            throw ApiException.badRequest("Content-Type 은 application/json 이어야 합니다.");
+        }
         request.setCharacterEncoding("UTF-8");
         try {
             T value = GSON.fromJson(request.getReader(), type);
