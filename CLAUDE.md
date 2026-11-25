@@ -40,7 +40,6 @@
 
 - `02_triggers.sql`, `03_procedures.sql`은 `DELIMITER`를 사용하므로 JDBC가 아닌 MySQL Workbench 또는 `mysql` CLI로 실행해야 합니다.
 - `06_seed_test.sql`은 초기화 전용이라 같은 DB에 두 번 실행하면 키 중복 오류가 납니다. 스키마가 바뀌면 개발용 DB를 `DROP DATABASE campusplan;` 후 다시 구축합니다.
-- 서블릿이 매핑되지 않은 경로(404)와 허용되지 않은 메서드(405)는 JSON이 아니라 Tomcat 기본 HTML 오류 페이지로 응답합니다.
 - 현재 `CorsFilter`에는 쿠키 허용(`Access-Control-Allow-Credentials`)이 없어 로그인 구현 시 함께 고쳐야 합니다.
 - 백엔드의 오류 변환·입력 검증 코드는 컴파일과 `/api/health` 동작만 확인했고 테스트 코드는 없습니다.
 

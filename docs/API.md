@@ -59,7 +59,8 @@ CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. 
 | 401 | `UNAUTHENTICATED` | 로그인하지 않았거나 세션이 만료됨 |
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 (아이디가 없거나 비밀번호가 틀림. 어느 쪽인지 알려 주지 않음) |
 | 403 | `FORBIDDEN` | 로그인했지만 이 API를 쓸 수 없는 역할 (학생이 관리자 API 호출, 관리자가 학생 API 호출) |
-| 404 | `NOT_FOUND` | 학생·학기·과목·수강·봉사 내역이 없거나 본인의 것이 아님 |
+| 404 | `NOT_FOUND` | 학생·학기·과목·수강·봉사 내역이 없거나 본인의 것이 아님, 존재하지 않는 경로 |
+| 405 | `METHOD_NOT_ALLOWED` | 해당 경로에서 지원하지 않는 HTTP 메서드 |
 | 409 | `SCHEDULE_CONFLICT` | 시간표 충돌 (트리거 `trg_schedule_conflict`의 `SQLSTATE 45000`) |
 | 409 | `DUPLICATE` | 유니크 제약 위반 (같은 학기에 같은 과목 중복 등록 등) |
 | 409 | `INVALID_STATE` | 이미 처리된 봉사 내역을 다시 승인하는 등 현재 상태에서 할 수 없는 요청 |
