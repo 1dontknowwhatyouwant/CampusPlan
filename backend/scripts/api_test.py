@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -460,6 +461,281 @@ def test_volunteer_writes():
               f"{len(before)}행 -> {len(after)}행")
 
 
+def test_enrollment_writes():
+    """수강 등록·성적 수정·시간표 쓰기 API. 시작 때 없던 행은 끝에서 지우고 테이블이 시작 때와 같은지 확인한다.
+
+    기존(시드) 수강·시간표 행은 바꾸지 않고, 테스트가 만든 수강 과목에서만 쓰기를 확인한다.
+    """
+    print("[수강·시간표 쓰기]")
+    enroll_sql = "SELECT * FROM Enrollment ORDER BY enrollment_id"
+    sched_sql = "SELECT * FROM Schedule ORDER BY schedule_id"
+    before_enroll, before_sched = db(enroll_sql), db(sched_sql)
+    enroll_ids = {int(r[0]) for r in before_enroll}
+    sched_ids = {int(r[0]) for r in before_sched}
+
+    try:
+        student1, student2, admin, anon = Client(), Client(), Client(), Client()
+        student1.login("student1")
+        student2.login("student2")
+        admin.login("admin")
+        sid1 = int(db("SELECT student_id FROM Account WHERE login_id = 'student1'")[0][0])
+        # student1 의 '재학' 학기와 student2 의 학기, 두 학생의 시드 수강·시간표
+        sem1 = int(db("SELECT semester_id FROM Semester WHERE student_id = %d AND status = '재학' "
+                      "ORDER BY year DESC, term DESC LIMIT 1", sid1)[0][0])
+        sem2 = int(db("SELECT semester_id FROM Semester WHERE student_id <> %d LIMIT 1", sid1)[0][0])
+        other_enroll = int(db("SELECT enrollment_id FROM Enrollment WHERE student_id <> %d ORDER BY enrollment_id LIMIT 1",
+                              sid1)[0][0])
+        other_sched = db("SELECT s.schedule_id FROM Schedule s JOIN Enrollment e ON e.enrollment_id = s.enrollment_id "
+                         "WHERE e.student_id <> %d LIMIT 1", sid1)
+        # 시드에 없는 과목 두 개 (이미 등록된 학기 과목과 겹치지 않게)
+        free = [int(r[0]) for r in db("SELECT course_id FROM Course WHERE course_id NOT IN "
+                                      "(SELECT course_id FROM Enrollment WHERE semester_id = %d) "
+                                      "ORDER BY course_id LIMIT 3", sem1)]
+        c1, c2, c3 = free
+        # 시드에서 쓰이는 요일·교시를 피해 빈 칸을 고른다
+        used = {(r[0], int(r[1])) for r in db("SELECT s.day, s.period FROM Schedule s JOIN Enrollment e "
+                                              "ON e.enrollment_id = s.enrollment_id WHERE e.student_id = %d "
+                                              "AND e.semester_id = %d", sid1, sem1)}
+        seed_slot = next(iter(sorted(used)), None)
+
+        # --- 수강 등록
+        status, _, body = student1.call("POST", "/api/me/enrollments", {"semesterId": sem1, "courseId": c1})
+        check("수강 등록 201", status == 201 and body.get("courseId") == c1 and body.get("grade") is None
+              and body.get("completed") is False and body.get("semesterId") == sem1, (status, body))
+        e1 = body.get("enrollmentId") or 0
+        row = db("SELECT student_id, semester_id, course_id, grade, completed FROM Enrollment WHERE enrollment_id = %d", e1)
+        check("DB에 본인 학기로 저장", row == [[str(sid1), str(sem1), str(c1), None, "0"]], row)
+        check("응답이 목록 조회 항목과 같음",
+              body in (student1.call("GET", f"/api/me/enrollments?semesterId={sem1}")[2] or []))
+
+        status, _, body = student1.call("POST", "/api/me/enrollments", {"semesterId": sem1, "courseId": c2, "grade": "A"})
+        e2 = body.get("enrollmentId") or 0
+        check("성적과 함께 등록하면 completed 는 트리거가 true 로 정함", status == 201 and body.get("completed") is True
+              and db("SELECT completed FROM Enrollment WHERE enrollment_id = %d", e2) == [["1"]], (status, body))
+        status, _, body = student1.call("POST", "/api/me/enrollments",
+                                        {"semesterId": sem1, "courseId": c3, "grade": "F", "completed": True})
+        e3 = body.get("enrollmentId") or 0
+        check("요청의 completed 는 무시됨(F 는 미이수)", status == 201 and body.get("completed") is False, (status, body))
+
+        status, _, body = student1.call("POST", "/api/me/enrollments", {"semesterId": sem1, "courseId": c1})
+        check("같은 학기 같은 과목 -> 409 DUPLICATE", status == 409 and error_code(body) == "DUPLICATE", (status, body))
+        status, _, body = student1.call("POST", "/api/me/enrollments", {"semesterId": sem1, "courseId": 99999999})
+        check("없는 과목 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = student1.call("POST", "/api/me/enrollments", {"semesterId": sem2, "courseId": c1})
+        check("다른 학생의 학기 -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        status, _, body = student1.call("POST", "/api/me/enrollments", {"semesterId": 99999999, "courseId": c1})
+        check("없는 학기 -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        invalid = {
+            "semesterId 누락": {"courseId": c1},
+            "courseId 누락": {"semesterId": sem1},
+            "semesterId 0": {"semesterId": 0, "courseId": c1},
+            "courseId 문자열": {"semesterId": sem1, "courseId": "abc"},
+            "grade 허용 외 값": {"semesterId": sem1, "courseId": c1, "grade": "Z"},
+            "grade 소문자": {"semesterId": sem1, "courseId": c1, "grade": "a"},
+        }
+        for label, payload in invalid.items():
+            status, _, body = student1.call("POST", "/api/me/enrollments", payload)
+            check(f"수강 등록 거부: {label} -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        status, _, body = student1.call("POST", "/api/me/enrollments")
+        check("수강 등록 본문 없음 -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        count = db("SELECT COUNT(*) FROM Enrollment")
+        status, _, body = student1.call("POST", "/api/me/enrollments", {"semesterId": sem1, "courseId": c1},
+                                        headers={"Origin": "http://localhost:5173"})
+        check("허용되지 않은 Origin 수강 등록 -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        check("거부된 요청은 저장되지 않음", db("SELECT COUNT(*) FROM Enrollment") == count)
+        status, _, body = admin.call("POST", "/api/me/enrollments", {"semesterId": sem1, "courseId": c1})
+        check("관리자가 수강 등록 -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+        status, _, body = anon.call("POST", "/api/me/enrollments", {"semesterId": sem1, "courseId": c1})
+        check("미로그인 수강 등록 -> 401", status == 401 and error_code(body) == "UNAUTHENTICATED")
+
+        # --- 성적 수정
+        status, _, body = student1.call("PATCH", f"/api/enrollments/{e1}", {"grade": "B+"})
+        check("성적 입력 200 + completed true", status == 200 and body.get("grade") == "B+"
+              and body.get("completed") is True and body.get("enrollmentId") == e1, (status, body))
+        check("DB 성적 반영", db("SELECT grade, completed FROM Enrollment WHERE enrollment_id = %d", e1) == [["B+", "1"]])
+        status, _, body = student1.call("PATCH", f"/api/enrollments/{e1}", {"grade": "F"})
+        check("F 로 수정하면 completed false", status == 200 and body.get("completed") is False, (status, body))
+        status, _, body = student1.call("PATCH", f"/api/enrollments/{e1}", {"grade": "P"})
+        check("P 는 이수", status == 200 and body.get("completed") is True, (status, body))
+        status, _, body = student1.call("PATCH", f"/api/enrollments/{e1}", {"grade": None})
+        check("grade null 로 성적 삭제", status == 200 and body.get("grade") is None and body.get("completed") is False
+              and db("SELECT grade, completed FROM Enrollment WHERE enrollment_id = %d", e1) == [[None, "0"]], (status, body))
+        for label, payload in {"grade 누락": {}, "허용 외 값": {"grade": "Z"}, "숫자": {"grade": 5},
+                               "객체": {"grade": {"a": 1}}}.items():
+            status, _, body = student1.call("PATCH", f"/api/enrollments/{e1}", payload)
+            check(f"성적 수정 거부: {label} -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        check("거부된 수정은 반영되지 않음", db("SELECT grade FROM Enrollment WHERE enrollment_id = %d", e1) == [[None]])
+        before_other = db("SELECT * FROM Enrollment WHERE enrollment_id = %d", other_enroll)
+        status, _, body = student1.call("PATCH", f"/api/enrollments/{other_enroll}", {"grade": "A"})
+        check("다른 학생의 수강 성적 수정 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        check("다른 학생의 수강은 그대로", db("SELECT * FROM Enrollment WHERE enrollment_id = %d", other_enroll) == before_other)
+        status, _, body = student1.call("PATCH", "/api/enrollments/99999999", {"grade": "A"})
+        check("없는 수강 성적 수정 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = student1.call("PATCH", "/api/enrollments/abc", {"grade": "A"})
+        check("수강 ID 형식 오류 -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        status, _, body = student1.call("PATCH", f"/api/enrollments/{e1}", {"grade": "A"},
+                                        headers={"Origin": "http://localhost:5173"})
+        check("허용되지 않은 Origin 성적 수정 -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        status, _, body = admin.call("PATCH", f"/api/enrollments/{e1}", {"grade": "A"})
+        check("관리자가 성적 수정 -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+        status, _, _ = student1.call("PATCH", "/api/me/enrollments", {"grade": "A"})
+        check("PATCH 미지원 경로 -> 405", status == 405, status)
+
+        # --- 시간표 등록
+        slots = {"slots": [{"day": "수", "period": 5, "room": "T-1"}, {"day": "수", "period": 6}]}
+        status, _, body = student1.call("POST", f"/api/enrollments/{e1}/schedules", slots)
+        got = body.get("slots") if isinstance(body, dict) else None
+        check("시간표 칸 2개 등록 201", status == 201 and isinstance(got, list) and len(got) == 2
+              and [(g["day"], g["period"], g["room"]) for g in got] == [("수", 5, "T-1"), ("수", 6, None)], (status, body))
+        rows = db("SELECT schedule_id, day, period, room FROM Schedule WHERE enrollment_id = %d ORDER BY period", e1)
+        check("DB에 두 칸 저장, 응답 scheduleId 와 일치", [r[0] for r in rows] == [str(g["scheduleId"]) for g in (got or [])]
+              and [(r[1], r[2], r[3]) for r in rows] == [("수", "5", "T-1"), ("수", "6", None)], rows)
+        status, _, body = student1.call("GET", f"/api/me/timetable?semesterId={sem1}")
+        entry = next((e for e in (body or {}).get("entries", []) if e["enrollmentId"] == e1), None)
+        check("시간표 조회에 반영", status == 200 and entry is not None and len(entry["slots"]) == 2, (status, entry))
+
+        before_sched_now = db(sched_sql)
+        status, _, body = student1.call("POST", f"/api/enrollments/{e2}/schedules", {"slots": [{"day": "수", "period": 5}]})
+        check("다른 수강 과목과 같은 요일·교시 -> 409 SCHEDULE_CONFLICT",
+              status == 409 and error_code(body) == "SCHEDULE_CONFLICT", (status, body))
+        status, _, body = student1.call("POST", f"/api/enrollments/{e2}/schedules",
+                                        {"slots": [{"day": "금", "period": 7}, {"day": "수", "period": 6}]})
+        check("여러 칸 중 하나가 충돌하면 409", status == 409 and error_code(body) == "SCHEDULE_CONFLICT", (status, body))
+        check("충돌 시 앞선 칸도 저장되지 않음(전체 취소)", db(sched_sql) == before_sched_now)
+        if seed_slot is not None:
+            status, _, body = student1.call("POST", f"/api/enrollments/{e2}/schedules",
+                                            {"slots": [{"day": seed_slot[0], "period": seed_slot[1]}]})
+            check("시드 시간표와 충돌 -> 409 SCHEDULE_CONFLICT",
+                  status == 409 and error_code(body) == "SCHEDULE_CONFLICT", (status, body))
+        status, _, body = student1.call("POST", f"/api/enrollments/{e1}/schedules", {"slots": [{"day": "수", "period": 5}]})
+        check("같은 수강 과목의 같은 칸 -> 409 DUPLICATE", status == 409 and error_code(body) == "DUPLICATE", (status, body))
+        status, _, body = student1.call("POST", f"/api/enrollments/{e1}/schedules",
+                                        {"slots": [{"day": "금", "period": 7}, {"day": "금", "period": 7}]})
+        check("요청 안에서 같은 칸 반복 -> 409 DUPLICATE 이고 전체 취소",
+              status == 409 and error_code(body) == "DUPLICATE" and db(sched_sql) == before_sched_now, (status, body))
+        invalid = {
+            "slots 누락": {},
+            "slots 빈 배열": {"slots": []},
+            "slots 31개": {"slots": [{"day": "금", "period": 1 + i % 9} for i in range(31)]},
+            "slots 에 null": {"slots": [None]},
+            "day 허용 외": {"slots": [{"day": "일", "period": 1}]},
+            "day 누락": {"slots": [{"period": 1}]},
+            "period 0": {"slots": [{"day": "금", "period": 0}]},
+            "period 16 (상한 15)": {"slots": [{"day": "금", "period": 16}]},
+            "period int 최대값": {"slots": [{"day": "금", "period": 2147483647}]},
+            "period 누락": {"slots": [{"day": "금"}]},
+            "period 소수": {"slots": [{"day": "금", "period": 1.5}]},
+            "room 51자": {"slots": [{"day": "금", "period": 1, "room": "가" * 51}]},
+        }
+        for label, payload in invalid.items():
+            status, _, body = student1.call("POST", f"/api/enrollments/{e1}/schedules", payload)
+            check(f"시간표 등록 거부: {label} -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        check("거부된 요청은 저장되지 않음", db(sched_sql) == before_sched_now)
+        status, _, body = student1.call("POST", f"/api/enrollments/{other_enroll}/schedules", {"slots": [{"day": "금", "period": 8}]})
+        check("다른 학생의 수강에 시간표 등록 -> 404", status == 404 and error_code(body) == "NOT_FOUND"
+              and db(sched_sql) == before_sched_now, (status, body))
+        status, _, body = student1.call("POST", "/api/enrollments/99999999/schedules", {"slots": [{"day": "금", "period": 8}]})
+        check("없는 수강에 시간표 등록 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = student1.call("POST", f"/api/enrollments/{e1}/x", {"slots": [{"day": "금", "period": 8}]})
+        check("잘못된 경로 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = student1.call("POST", f"/api/enrollments/{e1}/schedules", {"slots": [{"day": "금", "period": 8}]},
+                                        headers={"Origin": "http://localhost:5173"})
+        check("허용되지 않은 Origin 시간표 등록 -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        status, _, body = admin.call("POST", f"/api/enrollments/{e1}/schedules", {"slots": [{"day": "금", "period": 8}]})
+        check("관리자가 시간표 등록 -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+        status, _, _ = student1.call("GET", f"/api/enrollments/{e1}")
+        check("GET 미지원 경로 -> 405", status == 405, status)
+        for method, path in (("POST", "/api/enrollments"), ("PATCH", "/api/enrollments"),
+                             ("DELETE", "/api/enrollments"), ("DELETE", "/api/schedules")):
+            status, _, body = admin.call(method, path, {"grade": "A"} if method != "DELETE" else None)
+            check(f"관리자 {method} {path}(끝 / 없음) -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        status, _, body = student1.call("POST", f"/api/enrollments/{e1}/schedules", {"slots": [{"day": "토", "period": 15}]})
+        check("period 15(상한) 등록 201", status == 201, (status, body))
+
+        # 같은 칸을 두 수강 과목에 동시에 등록: 하나만 저장되고 다른 하나는 409 (교착 상태로 500 이 나지 않음)
+        def concurrent_post(eid, out):
+            c = Client()
+            c.login("student1")
+            st, _, b = c.call("POST", f"/api/enrollments/{eid}/schedules", {"slots": [{"day": "토", "period": 14}]})
+            out.append((st, error_code(b)))
+        outcomes, stored = [], []
+        for _ in range(5):
+            out = []
+            threads = [threading.Thread(target=concurrent_post, args=(eid, out)) for eid in (e1, e2)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            outcomes.append(sorted(out, key=lambda x: x[0]))
+            stored.append(db("SELECT COUNT(*) FROM Schedule s JOIN Enrollment e ON e.enrollment_id = s.enrollment_id "
+                             "WHERE e.student_id = %d AND s.day = '토' AND s.period = 14", sid1))
+            db("DELETE s FROM Schedule s JOIN Enrollment e ON e.enrollment_id = s.enrollment_id "
+               "WHERE e.enrollment_id IN (%d, %d) AND s.day = '토' AND s.period = 14", e1, e2)
+        check("동시 등록 5회: 매번 201 하나와 409 하나", all(o[0][0] == 201 and o[1][0] == 409
+              and o[1][1] in ("SCHEDULE_CONFLICT", "CONCURRENT_UPDATE") for o in outcomes), outcomes)
+        check("동시 등록 5회: 매번 한 칸만 저장", all(r == [["1"]] for r in stored), stored)
+
+        # --- 시간표 한 칸 삭제
+        first = got[0]["scheduleId"] if got else 0
+        if other_sched:
+            sid_other = int(other_sched[0][0])
+            status, _, body = student1.call("DELETE", f"/api/schedules/{sid_other}")
+            check("다른 학생의 시간표 삭제 -> 404", status == 404 and error_code(body) == "NOT_FOUND"
+                  and db("SELECT COUNT(*) FROM Schedule WHERE schedule_id = %d", sid_other) == [["1"]], (status, body))
+        status, _, body = student1.call("DELETE", f"/api/schedules/{first}", headers={"Origin": "http://localhost:5173"})
+        check("허용되지 않은 Origin 시간표 삭제 -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        status, _, body = admin.call("DELETE", f"/api/schedules/{first}")
+        check("관리자가 시간표 삭제 -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+        status, _, body = student1.call("DELETE", f"/api/schedules/{first}")
+        check("시간표 한 칸 삭제 204", status == 204 and body is None
+              and db("SELECT COUNT(*) FROM Schedule WHERE schedule_id = %d", first) == [["0"]], (status, body))
+        check("수강 과목은 남아 있음", db("SELECT COUNT(*) FROM Enrollment WHERE enrollment_id = %d", e1) == [["1"]])
+        status, _, body = student1.call("DELETE", f"/api/schedules/{first}")
+        check("이미 지운 칸 삭제 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = student1.call("DELETE", "/api/schedules/abc")
+        check("시간표 ID 형식 오류 -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        status, _, body = student1.call("DELETE", "/api/schedules/")
+        check("시간표 ID 없음 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = student1.call("POST", f"/api/enrollments/{e1}/schedules", {"slots": [{"day": "수", "period": 5}]})
+        check("지운 칸은 다시 등록할 수 있음", status == 201, (status, body))
+
+        # --- 수강 취소 (시간표 칸도 함께 삭제)
+        before_other = db("SELECT * FROM Enrollment WHERE enrollment_id = %d", other_enroll)
+        status, _, body = student1.call("DELETE", f"/api/enrollments/{other_enroll}")
+        check("다른 학생의 수강 취소 -> 404", status == 404 and error_code(body) == "NOT_FOUND"
+              and db("SELECT * FROM Enrollment WHERE enrollment_id = %d", other_enroll) == before_other, (status, body))
+        status, _, body = student1.call("DELETE", f"/api/enrollments/{e1}", headers={"Origin": "http://localhost:5173"})
+        check("허용되지 않은 Origin 수강 취소 -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        status, _, body = admin.call("DELETE", f"/api/enrollments/{e1}")
+        check("관리자가 수강 취소 -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+        check("거부된 요청 후에도 수강·시간표가 남아 있음",
+              db("SELECT COUNT(*) FROM Enrollment WHERE enrollment_id = %d", e1) == [["1"]]
+              and db("SELECT COUNT(*) FROM Schedule WHERE enrollment_id = %d", e1) != [["0"]])
+        status, _, body = student1.call("DELETE", f"/api/enrollments/{e1}")
+        check("시간표가 있는 수강 취소 204", status == 204 and body is None, (status, body))
+        check("수강과 그 시간표 칸이 함께 삭제됨",
+              db("SELECT COUNT(*) FROM Enrollment WHERE enrollment_id = %d", e1) == [["0"]]
+              and db("SELECT COUNT(*) FROM Schedule WHERE enrollment_id = %d", e1) == [["0"]])
+        status, _, body = student1.call("DELETE", f"/api/enrollments/{e2}")
+        check("시간표 없는(성적 입력된) 수강 취소 204", status == 204, (status, body))
+        status, _, body = student1.call("DELETE", f"/api/enrollments/{e1}")
+        check("이미 취소한 수강 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = student1.call("DELETE", "/api/enrollments/abc")
+        check("수강 ID 형식 오류(DELETE) -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        status, _, body = student1.call("DELETE", "/api/enrollments/")
+        check("수강 ID 없음(DELETE) -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+    finally:
+        # 시작 때 없던 행만 지운다. 시간표 칸을 먼저 지워야 수강 이력을 지울 수 있다.
+        new_sched = [r[0] for r in db("SELECT schedule_id FROM Schedule") if int(r[0]) not in sched_ids]
+        if new_sched:
+            db("DELETE FROM Schedule WHERE schedule_id IN (%s)" % ",".join(new_sched))
+        new_enroll = [r[0] for r in db("SELECT enrollment_id FROM Enrollment") if int(r[0]) not in enroll_ids]
+        if new_enroll:
+            db("DELETE FROM Enrollment WHERE enrollment_id IN (%s)" % ",".join(new_enroll))
+        check("테스트 후 Enrollment 가 시작 때와 같음", db(enroll_sql) == before_enroll)
+        check("테스트 후 Schedule 이 시작 때와 같음", db(sched_sql) == before_sched)
+
+
 def main():
     print(f"대상: {API_BASE}, DB 컨테이너: {CONTAINER}\n")
     try:
@@ -476,6 +752,7 @@ def main():
         print("\n[쓰기 테스트 생략] --read-only")
     else:
         test_volunteer_writes()
+        test_enrollment_writes()
 
     print(f"\n결과: {results['pass']} 통과, {results['fail']} 실패")
     sys.exit(1 if results["fail"] else 0)
