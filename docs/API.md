@@ -1,6 +1,6 @@
 # API 명세 (초안)
 
-CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`, `GET /api/me/credits`, `GET /api/me/graduation-check`이고 나머지는 구현 전입니다.
+CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`, `GET /api/me/credits`, `GET /api/me/graduation-check`, `GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`, `GET /api/me/volunteers`이고 나머지(쓰기 API, 관리자 API, 대시보드)는 구현 전입니다.
 
 ## 1. 공통 규칙
 
@@ -240,6 +240,8 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 ```
 
 - 시간표가 등록되지 않은 수강 과목은 `slots`가 빈 배열입니다.
+- `semesterId`가 없는 학기이거나 다른 학생의 학기면 404 `NOT_FOUND`입니다.
+- `entries`는 과목명 순, `slots`는 요일(월~토)·교시 순입니다.
 
 #### `POST /api/me/enrollments`
 
@@ -287,7 +289,7 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 
 #### `GET /api/me/enrollments?semesterId={semesterId}`
 
-수강 이력을 반환합니다. `semesterId`를 생략하면 전체 학기입니다.
+수강 이력을 반환합니다. `semesterId`를 생략하면 전체 학기입니다. 최신 학기부터, 같은 학기 안에서는 과목명 순입니다. `semesterId`가 없는 학기이거나 다른 학생의 학기면 404 `NOT_FOUND`, 정수가 아니면 400 `INVALID_REQUEST`입니다.
 
 ```json
 [
@@ -355,6 +357,8 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 ```
 
 - `approvedAt`은 승인 전에는 `null`입니다.
+- `approvedHours`는 `status` 필터와 관계없이 승인된 전체 시간입니다. `records`는 활동일 최신순입니다.
+- `status`가 허용 값이 아니면 400 `INVALID_REQUEST`입니다.
 
 #### `POST /api/me/volunteers`
 
