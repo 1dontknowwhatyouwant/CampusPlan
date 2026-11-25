@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""CampusPlan API 시나리오 테스트 (조회 전용, DB를 바꾸지 않음).
+"""CampusPlan API 시나리오 테스트.
 
 실행 중인 백엔드(backend/scripts/dev.sh)와 개발용 MySQL 컨테이너를 대상으로
 API 응답을 DB 직접 조회 결과와 대조합니다. 표준 라이브러리만 사용합니다.
 
+조회 테스트는 DB를 바꾸지 않습니다. 쓰기 테스트는 테스트용 행을 만들어 API로 처리한 뒤
+만든 행만 지우고, 시작 때와 같은 상태로 돌아왔는지 확인합니다 (자동 증가 번호는 되돌리지 않음).
+
 사용법 (저장소 루트에서):
-    python3 backend/scripts/api_test.py
+    python3 backend/scripts/api_test.py              # 조회 + 쓰기 테스트
+    python3 backend/scripts/api_test.py --read-only  # 조회 테스트만 (DB 쓰기 없음)
 
 환경 변수 (선택):
     API_BASE        기본 http://localhost:8080
@@ -298,6 +302,140 @@ def test_student(login_id):
           sorted(r["approvedAt"] for r in body["records"] if r["approvedAt"]) == db_times)
 
 
+def test_volunteer_writes():
+    """봉사 쓰기·관리자 API. 만든 행은 끝에서 지우고, 테이블이 시작 때와 같은지 확인한다."""
+    print("[봉사 쓰기·관리자]")
+    snapshot = "SELECT * FROM VolunteerRecord ORDER BY record_id"
+    before = db(snapshot)
+    created = []
+
+    def track(body):
+        if isinstance(body, dict) and isinstance(body.get("recordId"), int):
+            created.append(body["recordId"])
+        return body
+
+    try:
+        student1, student2, admin, anon = Client(), Client(), Client(), Client()
+        student1.login("student1")
+        student2.login("student2")
+        admin.login("admin")
+        sid1 = int(db("SELECT student_id FROM Account WHERE login_id = 'student1'")[0][0])
+        sid2 = int(db("SELECT student_id FROM Account WHERE login_id = 'student2'")[0][0])
+
+        # 등록
+        good = {"activityName": "[테스트] 봉사 A", "activityDate": "2026-11-20", "hours": 2.5}
+        status, _, body = student1.call("POST", "/api/me/volunteers", good)
+        track(body)
+        check("등록 201", status == 201 and body.get("status") == "대기" and body.get("approvedAt") is None, body)
+        check("등록 응답 값", body.get("activityName") == good["activityName"]
+              and body.get("activityDate") == "2026-11-20" and body.get("hours") == 2.5, body)
+        rid = body.get("recordId")
+        row = db("SELECT student_id, activity_name, hours, status FROM VolunteerRecord WHERE record_id = %d", rid or 0)
+        check("DB에 본인(student1) 대기 상태로 저장", row == [[str(sid1), good["activityName"], "2.5", "대기"]], row)
+
+        status, _, body = student1.call("POST", "/api/me/volunteers", {**good, "status": "승인", "studentId": sid2})
+        track(body)
+        row = db("SELECT student_id, status FROM VolunteerRecord WHERE record_id = %d", body.get("recordId") or 0)
+        check("요청의 status·studentId 는 무시됨", status == 201 and row == [[str(sid1), "대기"]], (body, row))
+
+        invalid = {
+            "hours 0": {**good, "hours": 0},
+            "hours 음수": {**good, "hours": -1},
+            "hours 소수 둘째 자리": {**good, "hours": 1.25},
+            "hours 범위 초과": {**good, "hours": 10000},
+            "hours 문자열": {**good, "hours": "abc"},
+            "hours 누락": {"activityName": "x", "activityDate": "2026-11-20"},
+            "날짜 형식 오류": {**good, "activityDate": "2026-13-40"},
+            "날짜 누락": {"activityName": "x", "hours": 1},
+            "이름 누락": {"activityDate": "2026-11-20", "hours": 1},
+            "이름 빈 문자열": {**good, "activityName": "   "},
+            "이름 101자": {**good, "activityName": "가" * 101},
+        }
+        for label, payload in invalid.items():
+            status, _, body = student1.call("POST", "/api/me/volunteers", payload)
+            track(body)
+            check(f"등록 거부: {label} -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        status, _, body = student1.call("POST", "/api/me/volunteers")
+        check("본문 없음 -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+
+        status, _, body = admin.call("POST", "/api/me/volunteers", good)
+        check("관리자가 학생 API -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+        status, _, body = anon.call("POST", "/api/me/volunteers", good)
+        check("미로그인 등록 -> 401", status == 401 and error_code(body) == "UNAUTHENTICATED")
+
+        # 관리자 목록
+        status, _, body = admin.call("GET", "/api/admin/volunteers")
+        expected = int(db("SELECT COUNT(*) FROM VolunteerRecord")[0][0])
+        check("관리자 목록 전체", status == 200 and len(body) == expected, (status, expected))
+        first = next((r for r in body if r["recordId"] == rid), None)
+        check("관리자 목록에 학생 이름 포함", first is not None
+              and first["studentId"] == sid1 and first["studentName"] == db(
+                  "SELECT name FROM Student WHERE student_id = %d", sid1)[0][0], first)
+        status, _, body = admin.call("GET", "/api/admin/volunteers?status=" + q("대기"))
+        expected = int(db("SELECT COUNT(*) FROM VolunteerRecord WHERE status = '대기'")[0][0])
+        check("관리자 목록 status 필터", status == 200 and len(body) == expected
+              and all(r["status"] == "대기" for r in body), (status, expected))
+        status, _, body = admin.call("GET", "/api/admin/volunteers?status=x")
+        check("관리자 목록 잘못된 status -> 400", status == 400 and error_code(body) == "INVALID_REQUEST")
+        status, _, body = student1.call("GET", "/api/admin/volunteers")
+        check("학생이 관리자 목록 -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+
+        # 개별 승인
+        status, _, body = student1.call("POST", f"/api/admin/volunteers/{rid}/approve")
+        check("학생이 승인 -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+        row = db("SELECT status FROM VolunteerRecord WHERE record_id = %d", rid)
+        check("403 이면 상태 그대로", row == [["대기"]], row)
+        hours_before = student1.call("GET", "/api/me/volunteers")[2]["approvedHours"]
+        status, _, body = admin.call("POST", f"/api/admin/volunteers/{rid}/approve")
+        check("승인 200", status == 200 and body == {"recordId": rid, "status": "승인"}, (status, body))
+        row = db("SELECT status, approved_at IS NOT NULL FROM VolunteerRecord WHERE record_id = %d", rid)
+        check("DB 승인 상태·승인 시각", row == [["승인", "1"]], row)
+        hours_after = student1.call("GET", "/api/me/volunteers")[2]["approvedHours"]
+        check("승인 시간 합계가 승인 건만큼 증가 (View)", round(hours_after - hours_before, 1) == 2.5,
+              (hours_before, hours_after))
+        status, _, body = admin.call("POST", f"/api/admin/volunteers/{rid}/approve")
+        check("재승인 -> 409 INVALID_STATE", status == 409 and error_code(body) == "INVALID_STATE", (status, body))
+        status, _, body = admin.call("POST", "/api/admin/volunteers/999999/approve")
+        check("없는 내역 승인 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = admin.call("POST", "/api/admin/volunteers/abc/approve")
+        check("id 형식 오류 -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        status, _, body = admin.call("GET", f"/api/admin/volunteers/{rid}/approve")
+        check("승인 경로에 GET -> 405", status == 405 and error_code(body) == "METHOD_NOT_ALLOWED", (status, body))
+        status, _, body = admin.call("POST", f"/api/admin/volunteers/{rid}/reject")
+        check("없는 하위 경로 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+
+        # 일괄 승인: 시드의 대기 내역을 건드리지 않도록, 대기 내역이 없는 학생으로만 시험한다.
+        pending2 = int(db("SELECT COUNT(*) FROM VolunteerRecord WHERE student_id = %d AND status = '대기'", sid2)[0][0])
+        if pending2 == 0:
+            for hours in (1.5, 2):
+                status, _, body = student2.call("POST", "/api/me/volunteers", {**good, "hours": hours})
+                track(body)
+            total = db("SELECT COALESCE(SUM(hours), 0) FROM VolunteerRecord WHERE student_id = %d "
+                       "AND (status = '승인' OR status = '대기')", sid2)[0][0]
+            status, _, body = admin.call("POST", f"/api/admin/students/{sid2}/volunteers/approve-all")
+            check("일괄 승인 200: 건수·누적 시간", status == 200 and body.get("approvedCount") == 2
+                  and float(body.get("totalApprovedHours")) == float(total), (body, total))
+            row = db("SELECT COUNT(*) FROM VolunteerRecord WHERE student_id = %d AND status = '대기'", sid2)
+            check("일괄 승인 후 대기 0건", row == [["0"]], row)
+            status, _, body = admin.call("POST", f"/api/admin/students/{sid2}/volunteers/approve-all")
+            check("대기 없으면 0건 정상 응답", status == 200 and body.get("approvedCount") == 0, (status, body))
+            status, _, body = student2.call("POST", f"/api/admin/students/{sid2}/volunteers/approve-all")
+            check("학생이 일괄 승인 -> 403", status == 403 and error_code(body) == "FORBIDDEN")
+        else:
+            print(f"  SKIP  일괄 승인: student2 에 대기 내역 {pending2}건이 있어 시드 데이터를 바꾸지 않으려고 건너뜀")
+        status, _, body = admin.call("POST", "/api/admin/students/999999/volunteers/approve-all")
+        check("없는 학생 일괄 승인 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = admin.call("POST", f"/api/admin/students/{sid2}/volunteers/x")
+        check("일괄 승인 잘못된 경로 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+    finally:
+        if created:
+            ids = ",".join(str(i) for i in created)  # created 는 서버 응답의 정수 recordId 만 담는다
+            db(f"DELETE FROM VolunteerRecord WHERE record_id IN ({ids})")
+        after = db(snapshot)
+        check("테스트 후 VolunteerRecord 가 시작 때와 같음", after == before,
+              f"{len(before)}행 -> {len(after)}행")
+
+
 def main():
     print(f"대상: {API_BASE}, DB 컨테이너: {CONTAINER}\n")
     try:
@@ -310,6 +448,10 @@ def main():
     test_courses()
     for (login_id,) in db("SELECT login_id FROM Account WHERE role = 'STUDENT' ORDER BY login_id"):
         test_student(login_id)
+    if "--read-only" in sys.argv[1:]:
+        print("\n[쓰기 테스트 생략] --read-only")
+    else:
+        test_volunteer_writes()
 
     print(f"\n결과: {results['pass']} 통과, {results['fail']} 실패")
     sys.exit(1 if results["fail"] else 0)
