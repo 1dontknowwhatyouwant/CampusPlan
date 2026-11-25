@@ -20,7 +20,11 @@ public abstract class ApiServlet extends HttpServlet {
     protected void service(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         try {
-            super.service(request, response);
+            if ("PATCH".equals(request.getMethod())) {
+                doPatch(request, response); // Servlet 6.0 의 HttpServlet 은 PATCH 를 처리하지 않는다.
+            } else {
+                super.service(request, response);
+            }
         } catch (ApiException e) {
             if (e.getStatus() >= 500) {
                 LOG.log(Level.SEVERE, "API 오류", e);
@@ -30,5 +34,11 @@ public abstract class ApiServlet extends HttpServlet {
             LOG.log(Level.SEVERE, "처리되지 않은 오류", e);
             JsonUtil.write(response, 500, new ErrorResponse("INTERNAL_ERROR", "서버 오류가 발생했습니다."));
         }
+    }
+
+    /** PATCH 를 지원하는 서블릿이 재정의한다. 기본은 405 이다. */
+    protected void doPatch(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
     }
 }

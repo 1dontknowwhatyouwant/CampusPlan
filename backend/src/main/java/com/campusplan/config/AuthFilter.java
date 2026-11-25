@@ -19,7 +19,7 @@ import java.util.Set;
  *
  * <ul>
  *   <li>로그인 불필요: GET /api/health, POST /api/auth/login</li>
- *   <li>STUDENT 전용: /api/me, /api/me/**, /api/enrollments/**, /api/schedules/**</li>
+ *   <li>STUDENT 전용: /api/me, /api/me/**, /api/enrollments, /api/enrollments/**, /api/schedules, /api/schedules/**</li>
  *   <li>ADMIN 전용: /api/admin/**</li>
  *   <li>그 외: 로그인한 모든 계정</li>
  * </ul>
@@ -66,7 +66,8 @@ public class AuthFilter implements Filter {
             return AuthUser.ADMIN;
         }
         if (path.equals("/api/me") || path.startsWith("/api/me/")
-                || path.startsWith("/api/enrollments/") || path.startsWith("/api/schedules/")) {
+                || path.equals("/api/enrollments") || path.startsWith("/api/enrollments/")
+                || path.equals("/api/schedules") || path.startsWith("/api/schedules/")) {
             return AuthUser.STUDENT;
         }
         return null;
