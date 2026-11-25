@@ -40,7 +40,8 @@
 
 - `02_triggers.sql`, `03_procedures.sql`은 `DELIMITER`를 사용하므로 JDBC가 아닌 MySQL Workbench 또는 `mysql` CLI로 실행해야 합니다.
 - `06_seed_test.sql`은 초기화 전용이라 같은 DB에 두 번 실행하면 키 중복 오류가 납니다. 스키마가 바뀌면 개발용 DB를 `DROP DATABASE campusplan;` 후 다시 구축합니다.
-- 백엔드는 로그인·권한 검사를 `curl`로 확인했고(401/403, 세션 고정 방지, CORS 쿠키 헤더), 테스트 코드는 없습니다. 오류 변환(`SqlErrorMapper`)과 도메인별 검증은 도메인 API 구현 때 처음 실행됩니다.
+- 백엔드 테스트는 조회 전용 API 시나리오 스크립트(`backend/scripts/api_test.py`, 응답을 DB 직접 조회와 대조)뿐입니다. 쓰기 API 테스트와 JUnit 단위 테스트는 없습니다. 오류 변환(`SqlErrorMapper`)의 중복 키·FK·CHECK 처리는 쓰기 API 구현 때 처음 실행됩니다.
+- 백엔드 코드를 바꾸면 PR 전에 `python3 backend/scripts/api_test.py`를 실행합니다.
 - 로그인 시도 횟수 제한이 없고 세션 만료 시간은 Tomcat 기본값입니다.
 - DB 연결 풀이 없어 요청마다 연결을 새로 엽니다(요청당 1~2번). 시연 규모에서는 문제가 없어 보류했고, 배포하거나 느려지면 `DBConnectionManager`에 HikariCP를 도입합니다(DAO는 바꾸지 않음).
 
