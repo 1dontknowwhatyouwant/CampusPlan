@@ -90,7 +90,7 @@ class Client:
     def call(self, method, path, body=None, headers=None):
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(API_BASE + path, data=data, method=method, headers=headers or {})
-        if data is not None:
+        if data is not None and "Content-Type" not in (headers or {}):
             req.add_header("Content-Type", "application/json")
         try:
             with self.opener.open(req) as res:
@@ -303,16 +303,15 @@ def test_student(login_id):
 
 
 def test_volunteer_writes():
-    """봉사 쓰기·관리자 API. 만든 행은 끝에서 지우고, 테이블이 시작 때와 같은지 확인한다."""
+    """봉사 쓰기·관리자 API. 시작 때 없던 행은 끝에서 지우고, 테이블이 시작 때와 같은지 확인한다.
+
+    정리는 응답으로 받은 ID 가 아니라 시작 전 스냅샷을 기준으로 한다. 테스트가 실패해 예상과 다른
+    요청이 성공한 경우에도 테스트가 만든 행이 남지 않게 하기 위해서다.
+    """
     print("[봉사 쓰기·관리자]")
     snapshot = "SELECT * FROM VolunteerRecord ORDER BY record_id"
     before = db(snapshot)
-    created = []
-
-    def track(body):
-        if isinstance(body, dict) and isinstance(body.get("recordId"), int):
-            created.append(body["recordId"])
-        return body
+    before_ids = {int(row[0]) for row in before}
 
     try:
         student1, student2, admin, anon = Client(), Client(), Client(), Client()
@@ -325,7 +324,6 @@ def test_volunteer_writes():
         # 등록
         good = {"activityName": "[테스트] 봉사 A", "activityDate": "2026-11-20", "hours": 2.5}
         status, _, body = student1.call("POST", "/api/me/volunteers", good)
-        track(body)
         check("등록 201", status == 201 and body.get("status") == "대기" and body.get("approvedAt") is None, body)
         check("등록 응답 값", body.get("activityName") == good["activityName"]
               and body.get("activityDate") == "2026-11-20" and body.get("hours") == 2.5, body)
@@ -334,7 +332,6 @@ def test_volunteer_writes():
         check("DB에 본인(student1) 대기 상태로 저장", row == [[str(sid1), good["activityName"], "2.5", "대기"]], row)
 
         status, _, body = student1.call("POST", "/api/me/volunteers", {**good, "status": "승인", "studentId": sid2})
-        track(body)
         row = db("SELECT student_id, status FROM VolunteerRecord WHERE record_id = %d", body.get("recordId") or 0)
         check("요청의 status·studentId 는 무시됨", status == 201 and row == [[str(sid1), "대기"]], (body, row))
 
@@ -346,6 +343,8 @@ def test_volunteer_writes():
             "hours 문자열": {**good, "hours": "abc"},
             "hours 누락": {"activityName": "x", "activityDate": "2026-11-20"},
             "날짜 형식 오류": {**good, "activityDate": "2026-13-40"},
+            "날짜 5자리 연도": {**good, "activityDate": "+10000-01-01"},
+            "날짜 연도 1000 미만": {**good, "activityDate": "0999-12-31"},
             "날짜 누락": {"activityName": "x", "hours": 1},
             "이름 누락": {"activityDate": "2026-11-20", "hours": 1},
             "이름 빈 문자열": {**good, "activityName": "   "},
@@ -353,10 +352,25 @@ def test_volunteer_writes():
         }
         for label, payload in invalid.items():
             status, _, body = student1.call("POST", "/api/me/volunteers", payload)
-            track(body)
             check(f"등록 거부: {label} -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
         status, _, body = student1.call("POST", "/api/me/volunteers")
         check("본문 없음 -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+        status, _, body = student1.call("POST", "/api/me/volunteers", good, headers={"Content-Type": "text/plain"})
+        check("Content-Type text/plain -> 400", status == 400 and error_code(body) == "INVALID_REQUEST", (status, body))
+
+        # CSRF: 상태를 바꾸는 요청에 허용되지 않은 Origin 이 있으면 403, 허용 출처(프론트엔드)는 통과
+        count = db("SELECT COUNT(*) FROM VolunteerRecord")
+        for origin in ("http://localhost:5173", "null"):
+            status, _, body = student1.call("POST", "/api/me/volunteers", good, headers={"Origin": origin})
+            check(f"Origin {origin} 등록 -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        check("거부된 등록은 저장되지 않음", db("SELECT COUNT(*) FROM VolunteerRecord") == count)
+        status, _, body = student1.call("POST", "/api/me/volunteers", good, headers={"Origin": FRONT_ORIGIN})
+        check("프론트엔드 Origin 등록 -> 201", status == 201, (status, body))
+        status, _, body = Client().call("POST", "/api/auth/login", {"loginId": "student1", "password": TEST_PASSWORD},
+                                        headers={"Origin": "http://localhost:5173"})
+        check("허용되지 않은 Origin 로그인 -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        status, _, _ = student1.call("GET", "/api/me/volunteers", headers={"Origin": "http://localhost:5173"})
+        check("조회(GET)는 Origin 과 관계없이 200", status == 200, status)
 
         status, _, body = admin.call("POST", "/api/me/volunteers", good)
         check("관리자가 학생 API -> 403", status == 403 and error_code(body) == "FORBIDDEN")
@@ -386,6 +400,11 @@ def test_volunteer_writes():
         row = db("SELECT status FROM VolunteerRecord WHERE record_id = %d", rid)
         check("403 이면 상태 그대로", row == [["대기"]], row)
         hours_before = student1.call("GET", "/api/me/volunteers")[2]["approvedHours"]
+        status, _, body = admin.call("POST", f"/api/admin/volunteers/{rid}/approve",
+                                     headers={"Origin": "http://localhost:5173"})
+        check("허용되지 않은 Origin 승인 -> 403", status == 403 and error_code(body) == "FORBIDDEN", (status, body))
+        row = db("SELECT status FROM VolunteerRecord WHERE record_id = %d", rid)
+        check("거부된 승인은 상태 그대로", row == [["대기"]], row)
         status, _, body = admin.call("POST", f"/api/admin/volunteers/{rid}/approve")
         check("승인 200", status == 200 and body == {"recordId": rid, "status": "승인"}, (status, body))
         row = db("SELECT status, approved_at IS NOT NULL FROM VolunteerRecord WHERE record_id = %d", rid)
@@ -403,13 +422,17 @@ def test_volunteer_writes():
         check("승인 경로에 GET -> 405", status == 405 and error_code(body) == "METHOD_NOT_ALLOWED", (status, body))
         status, _, body = admin.call("POST", f"/api/admin/volunteers/{rid}/reject")
         check("없는 하위 경로 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
+        status, _, body = admin.call("POST", "/api/admin/volunteers")
+        check("목록 경로에 POST -> 405", status == 405 and error_code(body) == "METHOD_NOT_ALLOWED", (status, body))
+        for path in ("/api/admin/volunteers/approve", "/api/admin/volunteers//approve"):
+            status, _, body = admin.call("GET", path)
+            check(f"GET {path} (ID 없음) -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
 
         # 일괄 승인: 시드의 대기 내역을 건드리지 않도록, 대기 내역이 없는 학생으로만 시험한다.
         pending2 = int(db("SELECT COUNT(*) FROM VolunteerRecord WHERE student_id = %d AND status = '대기'", sid2)[0][0])
         if pending2 == 0:
             for hours in (1.5, 2):
                 status, _, body = student2.call("POST", "/api/me/volunteers", {**good, "hours": hours})
-                track(body)
             total = db("SELECT COALESCE(SUM(hours), 0) FROM VolunteerRecord WHERE student_id = %d "
                        "AND (status = '승인' OR status = '대기')", sid2)[0][0]
             status, _, body = admin.call("POST", f"/api/admin/students/{sid2}/volunteers/approve-all")
@@ -428,9 +451,10 @@ def test_volunteer_writes():
         status, _, body = admin.call("POST", f"/api/admin/students/{sid2}/volunteers/x")
         check("일괄 승인 잘못된 경로 -> 404", status == 404 and error_code(body) == "NOT_FOUND", (status, body))
     finally:
-        if created:
-            ids = ",".join(str(i) for i in created)  # created 는 서버 응답의 정수 recordId 만 담는다
-            db(f"DELETE FROM VolunteerRecord WHERE record_id IN ({ids})")
+        # 시작 때 없던 행만 지운다. (시드 행이 승인 등으로 바뀌었다면 지우지 않고 아래 비교에서 실패로 드러난다)
+        new_ids = [int(row[0]) for row in db("SELECT record_id FROM VolunteerRecord") if int(row[0]) not in before_ids]
+        if new_ids:
+            db("DELETE FROM VolunteerRecord WHERE record_id IN (%s)" % ",".join(str(i) for i in new_ids))
         after = db(snapshot)
         check("테스트 후 VolunteerRecord 가 시작 때와 같음", after == before,
               f"{len(before)}행 -> {len(after)}행")
