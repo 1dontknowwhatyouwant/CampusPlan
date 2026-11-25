@@ -1,6 +1,6 @@
 # API 명세 (초안)
 
-CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`, `GET /api/me/credits`, `GET /api/me/graduation-check`, `GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`, `GET /api/me/volunteers`이고 나머지(쓰기 API, 관리자 API, 대시보드)는 구현 전입니다.
+CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`, `GET /api/me/credits`, `GET /api/me/graduation-check`, `GET /api/me/semesters`, `GET /api/me/enrollments`, `GET /api/me/timetable`, `GET /api/me/volunteers`, `POST /api/me/volunteers`, 관리자 봉사 API(`GET /api/admin/volunteers`, `POST /api/admin/volunteers/{recordId}/approve`, `POST /api/admin/students/{studentId}/volunteers/approve-all`)이고 나머지(수강·시간표·성적 쓰기 API, 학기 생성, 대시보드)는 구현 전입니다.
 
 ## 1. 공통 규칙
 
@@ -77,7 +77,8 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 | `status` (학기) | `예정`, `재학`, `이수` (임시 가정) |
 | `day` | `월`, `화`, `수`, `목`, `금`, `토` |
 | `period` | 1 이상의 정수 |
-| `hours` | 0보다 큰 수 |
+| `hours` | 0보다 크고 소수 첫째 자리까지, 9999.9 이하 (DB `DECIMAL(5,1)`) |
+| `activityDate` | `yyyy-MM-dd` 형식의 실제 있는 날짜 |
 | `activityName` | 비어 있지 않은 문자열, 100자 이하 |
 
 ## 2. 엔드포인트 요약
@@ -480,9 +481,9 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 ## 4. 구현 시 확인할 점
 
 - `02_triggers.sql`, `03_procedures.sql`로 만든 객체를 JDBC로 **호출**하는 것은 가능합니다(`CALL ApproveAllPendingVolunteer(?, ?, ?)`). 제한은 객체를 **만드는** SQL 파일의 `DELIMITER`에만 있습니다.
-- `ApproveAllPendingVolunteer`는 내부에서 트랜잭션을 시작하고 커밋하므로, 호출 전에 JDBC 연결의 자동 커밋 설정과 이미 열린 트랜잭션이 없는지 확인해야 합니다.
+- `ApproveAllPendingVolunteer`는 내부에서 트랜잭션을 시작하고 커밋하므로, 자동 커밋 상태인 새 연결로 호출합니다(구현됨). 호출 전에 다른 트랜잭션을 열어 두지 않습니다.
 - `GET .../timetable`처럼 여러 테이블을 묶는 응답은 서버에서 JOIN 결과를 그룹핑해 만듭니다. 학점·충족 여부는 DB 값을 쓰고 서버에서 다시 계산하지 않습니다.
-- DB 오류를 HTTP 오류로 바꾸는 규칙(SQLSTATE `45000`, 중복 키, 외래 키, `CHECK` 위반)은 한 곳에서 처리합니다. 다만 `45000`은 시간표 충돌(409)과 존재하지 않는 학생(404)에 모두 쓰이므로 SQLSTATE만으로 구분할 수 없습니다. 엔드포인트별로 처리하거나 메시지 문구로 구분해야 하며, 구현 전에 방식을 정해야 합니다.
+- DB 오류를 HTTP 오류로 바꾸는 규칙(SQLSTATE `45000`, 중복 키, 외래 키, `CHECK` 위반)은 한 곳에서 처리합니다. 다만 `45000`은 시간표 충돌(409)과 존재하지 않는 학생(404)에 모두 쓰이므로 SQLSTATE만으로 구분할 수 없습니다. SQLSTATE만으로는 구분할 수 없어 엔드포인트별 DAO가 직접 변환합니다. 일괄 승인은 `45000`을 404로 바꾸며 구현됐고, 시간표 등록의 `45000`(409)은 해당 API 구현 때 처리합니다.
 
 - 로그인 응답과 쿠키를 프론트엔드가 쓰려면 CORS 응답에 `Access-Control-Allow-Credentials: true`가 있어야 하고 `Access-Control-Allow-Origin`은 `*`가 아닌 특정 출처여야 합니다. 백엔드의 `CorsFilter`가 `http://localhost:3000`에 대해 이를 설정합니다. 로그인·권한 검사를 하는 `AuthFilter`는 CORS 필터 다음에 실행되어, 401·403 응답에도 CORS 헤더가 붙습니다. 두 필터의 순서는 `web.xml`에서 정합니다.
 - 비밀번호 비교는 `PBKDF2WithHmacSHA256`(JDK 기본 제공)으로 하고, 해시 문자열의 반복 횟수와 salt를 읽어 같은 방식으로 계산한 값과 비교합니다. 시드의 테스트 해시가 JDK 17에서 같은 값으로 검증되는 것을 확인했습니다.
