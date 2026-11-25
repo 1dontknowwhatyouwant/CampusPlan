@@ -6,21 +6,21 @@
 
 ## 현재 진행 상태 (2026-11-24 기준)
 
-폭포수 6단계 중 **4단계(구현)가 진행 중이며, DB 구축과 백엔드 공통 기반(`/api/health`까지)이 끝난 상태**입니다. 도메인 API, 로그인, 프론트엔드는 시작 전입니다. 작업 전에 실제 파일 상태를 다시 확인합니다.
+폭포수 6단계 중 **4단계(구현)가 진행 중이며, DB 구축과 백엔드 공통 기반(`/api/health`까지)이 끝난 상태**입니다. 로그인은 구현됐고, 도메인 API와 프론트엔드는 시작 전입니다. 작업 전에 실제 파일 상태를 다시 확인합니다.
 
 | 단계 | 상태 |
 |---|---|
 | 1. 요구사항·범위 | 완료 (`docs/REQUIREMENTS.md`, 계획서는 로컬 보관, 저장소에 올리지 않음) |
 | 2. 데이터 조사·정제 | 대부분 완료. 졸업 학점 기준은 공식 자료 반영, 그 외 조사 내용은 확인 전 |
 | 3. DB·API·화면 설계 | DB 설계 완료. API 명세 초안은 `docs/API.md`에 있음(로그인 방식 반영). ERD 문서는 아직 없음(팀원 작업), 화면 설계 문서는 없음 |
-| 4. 구현 | DB 완료, 백엔드는 공통 기반만 구현(도메인 API·로그인 구현 전), 프론트엔드는 시작 전 |
+| 4. 구현 | DB 완료, 백엔드는 공통 기반과 로그인·권한 검사까지 구현(도메인 API 구현 전), 프론트엔드는 시작 전 |
 | 5. 통합 확인 | 시작 전 |
 | 6. 문서·시연 정리 | 시작 전 |
 
 ### 영역별 현황
 
 - `database/`: `schema/01_schema.sql`(테이블 9개, 로그인 계정 `Account` 포함), `routines/02~04`, `seeds/05~06` 작성됨. MySQL 8.0(Docker)에서 순서대로 실행해 확인했다고 `database/README.md`에 기록되어 있음.
-- `backend/`: 공통 기반만 구현됨(`DBConnectionManager`, `CorsFilter`, `ApiServlet`·`ApiException`·`SqlErrorMapper`·`Validator`·`JsonUtil`, `HealthServlet`). 도메인 서블릿·DAO와 로그인·역할 검사는 아직 없고, README의 해당 구조는 계획입니다.
+- `backend/`: 공통 기반만 구현됨(`DBConnectionManager`, `CorsFilter`, `ApiServlet`·`ApiException`·`SqlErrorMapper`·`Validator`·`JsonUtil`, `HealthServlet`)과 로그인(`AuthServlet`, `AuthFilter`, `AccountDao`, `PasswordHasher`)이 구현됨. 도메인 서블릿·DAO는 아직 없고, README의 해당 구조는 계획입니다.
 - `frontend/`: `create-next-app` 기본 화면 그대로. 화면 구현 없음.
 - `docs/`: 요구사항 정의(`REQUIREMENTS.md`), API 명세 초안(`API.md`), 협업 규칙 문서(브랜치·커밋·이슈/PR 컨벤션)가 있음. ERD는 없음.
 
@@ -33,15 +33,15 @@
 - `05_seed_master.sql`의 과목은 2026학년도 2학기 강의시간표 기준 813건입니다. 교양은 필수/선택으로 구분하고, 전공은 구분 없이 `category = '전공'`입니다.
 - 졸업요건 조사 내용(`data_sources/graduation_requirements.md`)은 공식 원문과 최신 개정 여부가 확인되기 전까지 확정 기준이 아닙니다.
 - 입학년도 2026 학과 데이터의 출처 URL이 `admission2028.pdf`를 가리킵니다. 연도·출처 확인이 필요합니다.
-- 로그인은 서버 세션과 쿠키, 별도 `Account` 테이블(`STUDENT`/`ADMIN`), 봉사 승인은 관리자만 하는 것으로 설계가 정해졌고(`docs/API.md`), 구현은 아직 없습니다. 로그인 시도 제한, CSRF 토큰, 세션 만료 시간, 계정 발급 방식은 정해지지 않았습니다. 배포 방식도 정해지지 않았습니다. 인증·권한이 구현되기 전에는 안전하다고 표현하지 않습니다.
+- 로그인은 서버 세션과 쿠키, 별도 `Account` 테이블(`STUDENT`/`ADMIN`), 봉사 승인은 관리자만 하는 것으로 설계가 정해졌고(`docs/API.md`), 로그인·로그아웃·역할 검사는 구현됐습니다. 로그인 시도 제한, CSRF 토큰, 세션 만료 시간, 계정 발급 방식은 정해지지 않았습니다. 배포 방식도 정해지지 않았습니다. 인증·권한이 구현되기 전에는 안전하다고 표현하지 않습니다.
 - `06_seed_test.sql`의 로그인 계정(`student1`, `student2`, `admin`)은 개발·시연용 테스트 계정이며 테스트 비밀번호는 그 파일 주석에 있습니다. 실제 계정이 아닙니다.
 
 ## 알려진 문제
 
 - `02_triggers.sql`, `03_procedures.sql`은 `DELIMITER`를 사용하므로 JDBC가 아닌 MySQL Workbench 또는 `mysql` CLI로 실행해야 합니다.
 - `06_seed_test.sql`은 초기화 전용이라 같은 DB에 두 번 실행하면 키 중복 오류가 납니다. 스키마가 바뀌면 개발용 DB를 `DROP DATABASE campusplan;` 후 다시 구축합니다.
-- 현재 `CorsFilter`에는 쿠키 허용(`Access-Control-Allow-Credentials`)이 없어 로그인 구현 시 함께 고쳐야 합니다.
-- 백엔드의 오류 변환·입력 검증 코드는 컴파일과 `/api/health` 동작만 확인했고 테스트 코드는 없습니다.
+- 백엔드는 로그인·권한 검사를 `curl`로 확인했고(401/403, 세션 고정 방지, CORS 쿠키 헤더), 테스트 코드는 없습니다. 오류 변환(`SqlErrorMapper`)과 도메인별 검증은 도메인 API 구현 때 처음 실행됩니다.
+- 로그인 시도 횟수 제한이 없고 세션 만료 시간은 Tomcat 기본값입니다.
 
 ## 작업 시 참고
 

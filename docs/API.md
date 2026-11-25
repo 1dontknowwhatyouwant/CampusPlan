@@ -1,6 +1,6 @@
 # API 명세 (초안)
 
-CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 구현 전 설계 문서이며 구현된 API가 아닙니다.
+CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`와 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`)뿐이고 나머지는 구현 전입니다.
 
 ## 1. 공통 규칙
 
@@ -477,7 +477,7 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 - `GET .../timetable`처럼 여러 테이블을 묶는 응답은 서버에서 JOIN 결과를 그룹핑해 만듭니다. 학점·충족 여부는 DB 값을 쓰고 서버에서 다시 계산하지 않습니다.
 - DB 오류를 HTTP 오류로 바꾸는 규칙(SQLSTATE `45000`, 중복 키, 외래 키, `CHECK` 위반)은 한 곳에서 처리합니다. 다만 `45000`은 시간표 충돌(409)과 존재하지 않는 학생(404)에 모두 쓰이므로 SQLSTATE만으로 구분할 수 없습니다. 엔드포인트별로 처리하거나 메시지 문구로 구분해야 하며, 구현 전에 방식을 정해야 합니다.
 
-- 로그인 응답과 쿠키를 프론트엔드가 쓰려면 CORS 응답에 `Access-Control-Allow-Credentials: true`가 있어야 하고 `Access-Control-Allow-Origin`은 `*`가 아닌 특정 출처여야 합니다. 현재 `CorsFilter`에는 `Allow-Credentials` 설정이 없으므로 로그인 구현 시 함께 고칩니다.
+- 로그인 응답과 쿠키를 프론트엔드가 쓰려면 CORS 응답에 `Access-Control-Allow-Credentials: true`가 있어야 하고 `Access-Control-Allow-Origin`은 `*`가 아닌 특정 출처여야 합니다. 백엔드의 `CorsFilter`가 `http://localhost:3000`에 대해 이를 설정합니다. 로그인·권한 검사를 하는 `AuthFilter`는 CORS 필터 다음에 실행되어, 401·403 응답에도 CORS 헤더가 붙습니다. 두 필터의 순서는 `web.xml`에서 정합니다.
 - 비밀번호 비교는 `PBKDF2WithHmacSHA256`(JDK 기본 제공)으로 하고, 해시 문자열의 반복 횟수와 salt를 읽어 같은 방식으로 계산한 값과 비교합니다. 시드의 테스트 해시가 JDK 17에서 같은 값으로 검증되는 것을 확인했습니다.
 
 ## 5. 확정된 결정과 미확정 사항

@@ -58,7 +58,8 @@ backend/scripts/dev.sh build  # 빌드만
 
 - 스크립트는 JDK 17로 빌드하고, `backend/.tomcat/`(Git 제외)에 프로젝트 전용 Tomcat 인스턴스를 만들어 `ROOT.war`로 배포합니다. 전역 Java 설정은 바꾸지 않습니다.
 - DB 접속 정보는 `.env`를 읽어 환경 변수로 전달합니다. 코드나 저장소에는 두지 않습니다.
-- 확인된 동작: `/api/health`가 DB 연결 시 200, DB가 꺼져 있으면 503을 반환합니다. 도메인 API는 아직 없습니다.
+- 확인된 동작: `/api/health`가 DB 연결 시 200, DB가 꺼져 있으면 503을 반환합니다. 로그인·로그아웃·`/api/auth/me`와 역할별 접근 제한(401/403)이 동작합니다. 도메인 API는 아직 없습니다.
+- 테스트 계정(`student1`, `student2`, `admin`)은 `database/seeds/06_seed_test.sql`에 있고 테스트 비밀번호는 그 파일 주석에 있습니다.
 - 매핑되지 않은 경로(404)와 허용되지 않은 메서드(405)는 `web.xml`의 error-page가 `ErrorServlet`(`/_error`)으로 보내 JSON 오류 형식으로 응답합니다. 이 응답에는 `CorsFilter`가 적용되지 않아 브라우저(origin 3000)에서는 본문을 읽지 못할 수 있습니다.
 
 ## 4. 백엔드 구현 순서
@@ -74,6 +75,13 @@ backend/scripts/dev.sh build  # 빌드만
 - [x] `CorsFilter`: `http://localhost:3000` 요청 허용 설정
 - [x] `JsonUtil`, `ApiException`, `ApiServlet`, `Validator`, `SqlErrorMapper`: 공통 응답·오류 처리·입력 검증. 응답 규격은 [API 명세](../docs/API.md)를 따릅니다. 성공 시 데이터를 그대로 반환하고, 오류는 `{"error": {"code", "message"}}`입니다.
 - [x] `HealthServlet` (`GET /api/health`) 작성 후 로컬 Tomcat에서 DB 연결 정상 여부 테스트
+
+### Step 2-1. 로그인·권한
+- [x] `PasswordHasher`(PBKDF2-HMAC-SHA256), `AccountDao`: `Account` 조회와 비밀번호 검증. 계정이 없을 때도 같은 계산 비용을 쓰고 실패 응답은 같은 메시지로 통일
+- [x] `AuthServlet`: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`. 로그인 시 기존 세션을 버리고 새 세션 생성(세션 고정 방지)
+- [x] `AuthFilter`: 로그인 여부와 역할 검사(`/api/me/**`, `/api/enrollments/**`, `/api/schedules/**`는 `STUDENT`, `/api/admin/**`는 `ADMIN`). 필터 순서(CORS → 인증)와 세션 쿠키 설정(`HttpOnly`, `SameSite=Lax`)은 `web.xml`
+- [x] `CorsFilter`: `http://localhost:3000`에 쿠키 포함 요청 허용
+- [ ] 수강·시간표 항목의 소유권 검사는 해당 API 구현 시 각 API에서 처리
 
 ### Step 3. 선행 산출물 동기화 (DB & API 명세)
 - [x] `database/` 폴더의 테이블 DDL, View, Trigger, Stored Procedure가 로컬 MySQL에 반영되었는지 확인
