@@ -1,14 +1,15 @@
 package com.campusplan.util;
 
-import java.util.Set;
+import java.util.List;
 
 /** 요청 값 검증. 실패하면 400 INVALID_REQUEST 를 던집니다. DB 의 CHECK 는 마지막 방어선입니다. */
 public final class Validator {
 
-    public static final Set<String> GRADES =
-            Set.of("A+", "A", "B+", "B", "C+", "C", "D+", "D", "F", "P", "NP");
-    public static final Set<String> DAYS = Set.of("월", "화", "수", "목", "금", "토");
-    public static final Set<String> SEMESTER_STATUSES = Set.of("예정", "재학", "이수");
+    // 허용 값은 순서가 있는 List 로 둔다. 오류 메시지에 항상 같은 순서로 나오게 하기 위해서다.
+    public static final List<String> GRADES =
+            List.of("A+", "A", "B+", "B", "C+", "C", "D+", "D", "F", "P", "NP");
+    public static final List<String> DAYS = List.of("월", "화", "수", "목", "금", "토");
+    public static final List<String> SEMESTER_STATUSES = List.of("예정", "재학", "이수");
 
     private Validator() {
     }
@@ -37,7 +38,7 @@ public final class Validator {
         return value;
     }
 
-    public static String requireOneOf(String value, Set<String> allowed, String name) {
+    public static String requireOneOf(String value, List<String> allowed, String name) {
         if (value == null || !allowed.contains(value)) {
             throw ApiException.badRequest(name + " 값이 올바르지 않습니다. 허용 값: " + allowed);
         }

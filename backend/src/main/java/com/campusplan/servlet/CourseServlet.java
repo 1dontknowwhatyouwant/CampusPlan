@@ -7,13 +7,13 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 
 /** GET /api/courses?q=&category=&page=&size= : 과목 검색 (로그인한 모든 계정) */
 @WebServlet("/api/courses")
 public class CourseServlet extends ApiServlet {
 
-    private static final Set<String> CATEGORIES = Set.of("전공", "교양필수", "교양선택");
+    private static final List<String> CATEGORIES = List.of("전공", "교양필수", "교양선택");
     private static final int MAX_QUERY_LENGTH = 100;
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 100;
