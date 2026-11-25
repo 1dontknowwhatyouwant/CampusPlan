@@ -93,7 +93,7 @@ backend/scripts/dev.sh build  # 빌드만
 - [ ] **학생 · 대시보드 API (`StudentServlet`, `StudentDao`)**: `GET /api/me`(학생 기본 정보)는 구현됨. 학점/봉사 요약 View 조회와 대시보드는 아직 없음
 - [ ] **수강 · 시간표 API (`EnrollmentServlet`, `EnrollmentDao`)**: 수강 내역 등록·수정·삭제 및 학기별 주간 시간표 조회
 - [ ] **봉사활동 API (`VolunteerServlet`, `VolunteerDao`)**: 봉사 내역 등록·조회 및 승인 봉사시간 집계 View 조회
-- [ ] **졸업요건 진단 API (`GraduationServlet`, `GraduationDao`)**: DB 졸업 진단 Stored Procedure / View 호출 및 결과 반환
+- [x] **학점·졸업요건 진단 API (`CreditServlet`, `GraduationServlet`, `GraduationDao`)**: `GET /api/me/credits`(View `CreditSummary`), `GET /api/me/graduation-check`(View `GraduationCheck`) 결과를 그대로 반환
 
 ### Step 5. 예외 처리 검증 및 문서 갱신
 - [ ] 필수 파라미터 누락, 잘못된 값 입력, 미존재 데이터 조회 시 오류 응답(`400`, `404` 등) 검증

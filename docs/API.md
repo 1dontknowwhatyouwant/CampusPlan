@@ -1,6 +1,6 @@
 # API 명세 (초안)
 
-CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`이고 나머지는 구현 전입니다.
+CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`, `GET /api/me/credits`, `GET /api/me/graduation-check`이고 나머지는 구현 전입니다.
 
 ## 1. 공통 규칙
 
@@ -428,8 +428,8 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
       "ruleId": 5,
       "ruleName": "총 이수학점 (항공학부)",
       "ruleType": "TOTAL_CREDITS",
-      "currentValue": 45,
-      "requiredValue": 130,
+      "currentValue": 45.0,
+      "requiredValue": 130.0,
       "isMet": false,
       "isVerified": true
     }
@@ -441,11 +441,12 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 | 필드 | 설명 |
 | --- | --- |
 | `ruleType` | `TOTAL_CREDITS`, `MAJOR_CREDITS`, `GENERAL_CREDITS`, `VOLUNTEER_HOURS`, `REQUIRED_COURSE` |
-| `currentValue` / `requiredValue` | 학점·봉사시간. `REQUIRED_COURSE`는 이수 시 `1`/미이수 시 `0`, 기준값은 `1` |
+| `currentValue` / `requiredValue` | 학점·봉사시간 (소수 1자리 숫자, 예: `8.0`). `REQUIRED_COURSE`는 이수 시 `1.0`/미이수 시 `0.0`, 기준값은 `1.0` |
 | `isMet` | DB가 계산한 충족 여부 |
 | `isVerified` | `false`면 공식 확인 전 임시·테스트 규칙입니다. 화면에서 구분해 표시해야 합니다. |
 | `allMet` | 모든 `rules`가 충족이면 `true`, 하나라도 미충족이면 `false`. `isMet`을 모은 값이며 새 판정 기준이 아닙니다. 규칙이 없으면 판정할 수 없으므로 `null`입니다. |
 
+- 규칙은 `ruleId` 순서이며, 공식 규칙과 테스트 규칙(`isVerified: false`)이 함께 나옵니다.
 - 학생에게 적용되는 규칙이 없으면 `rules`는 빈 배열이고 `allMet`은 `null`입니다. 화면은 "졸업 불가"가 아니라 "판정할 규칙 없음"으로 표시해야 합니다.
 
 ### FR-07 대시보드
