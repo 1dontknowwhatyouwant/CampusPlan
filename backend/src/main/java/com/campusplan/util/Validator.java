@@ -48,16 +48,24 @@ public final class Validator {
         return value;
     }
 
-    /** yyyy-MM-dd 형식의 날짜 문자열을 읽습니다. */
+    /**
+     * yyyy-MM-dd 형식의 날짜 문자열을 읽습니다. 연도는 MySQL DATE 의 지원 범위인 1000~9999 만 받습니다.
+     * (LocalDate.parse 는 "+10000-01-01" 같은 5자리 연도도 받아들여, 거르지 않으면 DB 저장 단계에서 500 이 된다)
+     */
     public static LocalDate parseDate(String value, String name) {
         if (value == null || value.isBlank()) {
             throw ApiException.badRequest(name + " 값이 필요합니다.");
         }
+        LocalDate date;
         try {
-            return LocalDate.parse(value);
+            date = LocalDate.parse(value);
         } catch (DateTimeParseException e) {
             throw ApiException.badRequest(name + " 은(는) yyyy-MM-dd 형식의 올바른 날짜여야 합니다.");
         }
+        if (date.getYear() < 1000 || date.getYear() > 9999) {
+            throw ApiException.badRequest(name + " 의 연도는 1000~9999 사이여야 합니다.");
+        }
+        return date;
     }
 
     /** 0 보다 크고 소수 첫째 자리까지, max 이하인 수 (DB 의 DECIMAL(n,1) 범위를 넘지 않게 먼저 거른다). */
