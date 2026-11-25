@@ -13,14 +13,14 @@
 | 1. 요구사항·범위 | 완료 (`docs/REQUIREMENTS.md`, 계획서는 로컬 보관, 저장소에 올리지 않음) |
 | 2. 데이터 조사·정제 | 대부분 완료. 졸업 학점 기준은 공식 자료 반영, 그 외 조사 내용은 확인 전 |
 | 3. DB·API·화면 설계 | DB 설계 완료. API 명세 초안은 `docs/API.md`에 있음(로그인 방식 반영). ERD 문서는 아직 없음(팀원 작업), 화면 설계 문서는 없음 |
-| 4. 구현 | DB 완료, 백엔드는 공통 기반과 로그인·권한 검사까지 구현(도메인 API 구현 전), 프론트엔드는 시작 전 |
+| 4. 구현 | DB 완료, 백엔드는 공통 기반, 로그인·권한 검사, `GET /api/me`·`GET /api/courses`까지 구현(나머지 도메인 API 구현 전), 프론트엔드는 시작 전 |
 | 5. 통합 확인 | 시작 전 |
 | 6. 문서·시연 정리 | 시작 전 |
 
 ### 영역별 현황
 
 - `database/`: `schema/01_schema.sql`(테이블 9개, 로그인 계정 `Account` 포함), `routines/02~04`, `seeds/05~06` 작성됨. MySQL 8.0(Docker)에서 순서대로 실행해 확인했다고 `database/README.md`에 기록되어 있음.
-- `backend/`: 공통 기반만 구현됨(`DBConnectionManager`, `CorsFilter`, `ApiServlet`·`ApiException`·`SqlErrorMapper`·`Validator`·`JsonUtil`, `HealthServlet`)과 로그인(`AuthServlet`, `AuthFilter`, `AccountDao`, `PasswordHasher`)이 구현됨. 도메인 서블릿·DAO는 아직 없고, README의 해당 구조는 계획입니다.
+- `backend/`: 공통 기반만 구현됨(`DBConnectionManager`, `CorsFilter`, `ApiServlet`·`ApiException`·`SqlErrorMapper`·`Validator`·`JsonUtil`, `HealthServlet`)과 로그인(`AuthServlet`, `AuthFilter`, `AccountDao`, `PasswordHasher`)이 구현됨. `GET /api/me`(`StudentServlet`), `GET /api/courses`(`CourseServlet`)가 구현됨. 나머지 도메인 서블릿·DAO는 아직 없고, README의 해당 구조는 계획입니다.
 - `frontend/`: `create-next-app` 기본 화면 그대로. 화면 구현 없음.
 - `docs/`: 요구사항 정의(`REQUIREMENTS.md`), API 명세 초안(`API.md`), 협업 규칙 문서(브랜치·커밋·이슈/PR 컨벤션)가 있음. ERD는 없음.
 

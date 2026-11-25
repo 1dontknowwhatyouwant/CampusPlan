@@ -1,6 +1,6 @@
 # API 명세 (초안)
 
-CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`와 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`)뿐이고 나머지는 구현 전입니다.
+CampusPlan 백엔드(Java Servlet REST API)의 엔드포인트 초안입니다. [요구사항 정의](REQUIREMENTS.md)의 기능 번호(FR-xx)를 기준으로 하고, 필드는 `database/`의 스키마·View·Procedure와 맞췄습니다. 설계 문서이며, 구현된 API는 `GET /api/health`, 인증(`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`), `GET /api/me`, `GET /api/courses`이고 나머지는 구현 전입니다.
 
 ## 1. 공통 규칙
 
@@ -191,6 +191,8 @@ SQL은 파라미터 바인딩만 사용합니다. 서버는 아래 값을 먼저
 ```
 
 - 담당교수, 요일·교시는 `Course`에 없으므로 제공하지 않습니다.
+- 과목명, 과목코드 순으로 정렬합니다. 검색어의 `%`, `_`는 와일드카드가 아니라 문자 그대로 검색합니다. 테스트 과목(`TEST-*`, `[테스트] ...`)도 목록에 포함되며 과목명 정렬상 앞쪽에 나옵니다.
+- `page`, `size`, `category` 값이 올바르지 않으면 400 `INVALID_REQUEST`입니다.
 
 #### `GET /api/me/semesters`
 
