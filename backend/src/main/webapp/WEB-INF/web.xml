@@ -35,4 +35,22 @@
             </attribute>
         </cookie-config>
     </session-config>
+
+    <!-- 404/405/400/500 등 컨테이너가 만드는 오류를 HTML 대신 JSON 오류 형식으로 응답합니다. (ErrorServlet) -->
+    <error-page>
+        <error-code>400</error-code>
+        <location>/_error</location>
+    </error-page>
+    <error-page>
+        <error-code>404</error-code>
+        <location>/_error</location>
+    </error-page>
+    <error-page>
+        <error-code>405</error-code>
+        <location>/_error</location>
+    </error-page>
+    <error-page>
+        <error-code>500</error-code>
+        <location>/_error</location>
+    </error-page>
 </web-app>
