@@ -1,6 +1,7 @@
 package com.campusplan.util;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -9,7 +10,8 @@ import java.io.PrintWriter;
 
 public final class JsonUtil {
 
-    private static final Gson GSON = new Gson();
+    // API 명세대로 null 값도 응답에 포함한다. (예: 관리자 계정의 studentId)
+    private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
     private JsonUtil() {
     }

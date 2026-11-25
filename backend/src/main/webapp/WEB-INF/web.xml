@@ -4,23 +4,35 @@
          xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
          version="6.0">
     <display-name>CampusPlan API</display-name>
-    <!-- 서블릿과 필터는 각 클래스의 @WebServlet / @WebFilter 애노테이션으로 등록합니다. -->
 
-    <!-- 404/405/400 및 그 외 오류를 HTML 대신 JSON 오류 형식으로 응답합니다. -->
-    <error-page>
-        <error-code>400</error-code>
-        <location>/_error</location>
-    </error-page>
-    <error-page>
-        <error-code>404</error-code>
-        <location>/_error</location>
-    </error-page>
-    <error-page>
-        <error-code>405</error-code>
-        <location>/_error</location>
-    </error-page>
-    <error-page>
-        <error-code>500</error-code>
-        <location>/_error</location>
-    </error-page>
+    <!-- 서블릿은 각 클래스의 @WebServlet 으로 등록합니다.
+         필터는 실행 순서가 중요해서(CORS 헤더가 401/403 응답에도 붙어야 함) 여기서 순서를 정합니다. -->
+    <filter>
+        <filter-name>CorsFilter</filter-name>
+        <filter-class>com.campusplan.config.CorsFilter</filter-class>
+    </filter>
+    <filter>
+        <filter-name>AuthFilter</filter-name>
+        <filter-class>com.campusplan.config.AuthFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>CorsFilter</filter-name>
+        <url-pattern>/api/*</url-pattern>
+    </filter-mapping>
+    <filter-mapping>
+        <filter-name>AuthFilter</filter-name>
+        <url-pattern>/api/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 세션 쿠키: JavaScript 에서 읽을 수 없게(HttpOnly) 하고 SameSite=Lax 로 둡니다.
+         Secure 는 로컬 개발이 http 라서 설정하지 않습니다. 배포 시 https 와 함께 정합니다. -->
+    <session-config>
+        <cookie-config>
+            <http-only>true</http-only>
+            <attribute>
+                <attribute-name>SameSite</attribute-name>
+                <attribute-value>Lax</attribute-value>
+            </attribute>
+        </cookie-config>
+    </session-config>
 </web-app>

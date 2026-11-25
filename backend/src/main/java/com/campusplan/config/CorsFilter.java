@@ -5,13 +5,11 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
-import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
-/** 프론트엔드(Next.js 개발 서버, http://localhost:3000)의 요청만 허용합니다. */
-@WebFilter("/api/*")
+/** 프론트엔드(Next.js 개발 서버, http://localhost:3000)의 요청만 쿠키 포함으로 허용합니다. (등록과 실행 순서는 web.xml) */
 public class CorsFilter implements Filter {
 
     private static final String ALLOWED_ORIGIN = "http://localhost:3000";
@@ -24,6 +22,7 @@ public class CorsFilter implements Filter {
 
         if (ALLOWED_ORIGIN.equals(request.getHeader("Origin"))) {
             response.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+            response.setHeader("Access-Control-Allow-Credentials", "true");
             response.setHeader("Vary", "Origin");
             response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
             response.setHeader("Access-Control-Allow-Headers", "Content-Type");
